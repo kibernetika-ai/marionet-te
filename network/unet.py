@@ -16,24 +16,49 @@ class UNet(nn.Module):
         self.down3 = Down(256, 512)
         factor = 2 if bilinear else 1
         self.down4 = Down(512, 1024 // factor)
+        self.down5 = Down(512, 1024 // factor)
+
+        self.avg_pool1 = nn.AvgPool2d(2)
+        self.avg_pool2 = nn.AvgPool2d(4)
+        self.avg_pool3 = nn.AvgPool2d(8)
+        self.avg_pool3 = nn.AvgPool2d(16)
+
         self.up1 = Up(1024, 512 // factor, bilinear)
         self.up2 = Up(512, 256 // factor, bilinear)
         self.up3 = Up(256, 128 // factor, bilinear)
         self.up4 = Up(128, 64, bilinear)
         self.outc = OutConv(64, n_classes)
 
+        self.warp = nn.UpsamplingBilinear2d(size=256 // 2)
+
     def forward(self, x):
         x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
+        s1 = self.down1(x1)
+        s2 = self.down2(s1)
+        s3 = self.down3(s2)
+        s4 = self.down4(s3)
+        zy = self.down4(s4)
+        x = self.up1(s4, s3)
+        x = self.up2(x, s2)
+        x = self.up3(x, s1)
         x = self.up4(x, x1)
-        logits = self.outc(x)
-        return logits
+
+        flow_map = self.outc(x)
+        flow_map = torch.tanh(flow_map)
+
+        fy1 = self.avg_pool1(flow_map)
+        fy2 = self.avg_pool1(flow_map)
+        fy3 = self.avg_pool1(flow_map)
+        fy4 = self.avg_pool1(flow_map)
+
+        # Apply warping function
+        s1 = nn.functional.grid_sample(s1, fy1.permute([0, 2, 3, 1]))
+        s2 = nn.functional.grid_sample(s2, fy2.permute([0, 2, 3, 1]))
+        s3 = nn.functional.grid_sample(s3, fy3.permute([0, 2, 3, 1]))
+        s4 = nn.functional.grid_sample(s4, fy4.permute([0, 2, 3, 1]))
+        __import__('ipdb').set_trace()
+
+        return s1, s2, s3, s4, zy
 
 
 class DoubleConv(nn.Module):

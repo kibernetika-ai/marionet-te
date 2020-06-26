@@ -50,13 +50,10 @@ def main():
     device = torch.device("cuda") if torch.cuda.is_available() else cpu
     batch_size = args.batch_size
     frame_shape = args.frame_shape
-    path_to_Wi = os.path.join(args.train_dir, 'wi_weights')
     K = args.k
-    if not os.path.exists(path_to_Wi):
-        os.makedirs(path_to_Wi)
 
     if args.preprocessed:
-        dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, path_to_Wi=path_to_Wi, frame_shape=frame_shape)
+        dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, frame_shape=frame_shape)
         data_loader = DataLoader(
             dataset,
             batch_size=batch_size,
@@ -67,7 +64,7 @@ def main():
     else:
         dataset = VidDataSet(
             K=K, path_to_mp4=args.data_dir,
-            device=args.fa_device, path_to_wi=path_to_Wi, size=frame_shape
+            device=args.fa_device, size=frame_shape
         )
         data_loader = DataLoader(
             dataset,
@@ -80,15 +77,13 @@ def main():
     path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
 
     G = nn.DataParallel(Generator(frame_shape).to(device))
-    E = nn.DataParallel(Embedder(frame_shape).to(device))
-    D = nn.DataParallel(Discriminator(dataset.__len__(), path_to_Wi, args.batch_size).to(device))
+    D = nn.DataParallel(Discriminator(dataset.__len__(), args.batch_size).to(device))
 
     G.train()
-    E.train()
     D.train()
 
     optimizerG = optim.Adam(
-        params=list(E.parameters()) + list(G.parameters()),
+        params=list(G.parameters()),
         lr=5e-5,
         amsgrad=False
     )
@@ -98,11 +93,6 @@ def main():
         amsgrad=False)
 
     """Criterion"""
-    criterionG = LossG(
-        VGGFace_body_path=os.path.join(args.vggface_dir, 'Pytorch_VGGFACE_IR.py'),
-        VGGFace_weight_path=os.path.join(args.vggface_dir, 'Pytorch_VGGFACE.pth'),
-        device=device
-    )
     criterionDreal = LossDSCreal()
     criterionDfake = LossDSCfake()
 
@@ -122,14 +112,12 @@ def main():
 
         G.apply(init_weights)
         D.apply(init_weights)
-        E.apply(init_weights)
 
         print_fun('Initiating new checkpoint...')
         torch.save({
             'epoch': epoch,
             'lossesG': lossesG,
             'lossesD': lossesD,
-            'E_state_dict': E.module.state_dict(),
             'G_state_dict': G.module.state_dict(),
             'D_state_dict': D.module.state_dict(),
             'num_vid': dataset.__len__(),
@@ -141,24 +129,18 @@ def main():
 
     """Loading from past checkpoint"""
     checkpoint = torch.load(path_to_chkpt, map_location=cpu)
-    E.module.load_state_dict(checkpoint['E_state_dict'])
     G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
     D.module.load_state_dict(checkpoint['D_state_dict'])
-    epochCurrent = checkpoint['epoch']
     lossesG = checkpoint['lossesG']
     lossesD = checkpoint['lossesD']
-    num_vid = checkpoint['num_vid']
     optimizerG.load_state_dict(checkpoint['optimizerG'])
     optimizerD.load_state_dict(checkpoint['optimizerD'])
     prev_step = checkpoint['i_batch']
 
     G.train()
-    E.train()
     D.train()
 
     """Training"""
-    batch_start = datetime.now()
-
     writer = tensorboardX.SummaryWriter(args.train_dir)
     num_batches = len(dataset) / args.batch_size
     log_step = int(round(0.005 * num_batches + 20))
@@ -172,47 +154,36 @@ def main():
     if prev_step != 0:
         print_fun(f"Starting at {prev_step} step.")
 
-
     for epoch in range(0, num_epochs):
         # if epochCurrent > epoch:
         #     pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
         #     continue
         # Reset random generator
         np.random.seed(int(time.time()))
-        for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(data_loader):
+        for i_batch, (frames, marks, img, mark, i) in enumerate(data_loader):
 
-            f_lm = f_lm.to(device)
-            x = x.to(device)
-            g_y = g_y.to(device)
-            # W_i = W_i.squeeze(-1).transpose(0, 1).to(device).requires_grad_()
-
-            # D.module.load_W_i(W_i)
+            frames = frames.to(device).reshape([-1, *list(frames.shape[2:])])
+            marks = marks.to(device).reshape([-1, *list(marks.shape[2:])])
+            mark = mark.to(device)
+            img = img.to(device)
 
             with torch.autograd.enable_grad():
                 # zero the parameter gradients
                 optimizerG.zero_grad()
                 optimizerD.zero_grad()
 
-                # forward
-                # Calculate average encoding vector for video
-                f_lm_compact = f_lm.view(-1, f_lm.shape[-4], f_lm.shape[-3], f_lm.shape[-2],
-                                         f_lm.shape[-1])  # BxK,2,3,224,224
-
-                e_vectors = E(f_lm_compact[:, 0, :, :, :], f_lm_compact[:, 1, :, :, :])  # BxK,512,1
-                e_vectors = e_vectors.view(-1, f_lm.shape[1], E_LEN, 1)  # B,K,512,1
-                e_hat = e_vectors.mean(dim=1)
-
                 # train G and D
-                x_hat = G(g_y, e_hat)
-                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                x_hat = G(img, frames, marks)
+                exit()
+                r_hat, D_hat_res_list = D(x_hat, mark, i)
                 with torch.no_grad():
-                    r, D_res_list = D(x, g_y, i)
+                    r, D_res_list = D(img, mark, i)
                 """####################################################################################################################################################
                 r, D_res_list = D(x, g_y, i)"""
 
-                lossG = criterionG(
-                    x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i[:, i], i
-                )
+                # lossG = criterionG(
+                #     x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i[:, i], i
+                # )
 
                 """####################################################################################################################################################
                 lossD = criterionDfake(r_hat) + criterionDreal(r)
@@ -221,7 +192,7 @@ def main():
                 optimizerG.step()
                 optimizerD.step()"""
 
-                lossG.backward(retain_graph=False)
+                # lossG.backward(retain_graph=False)
                 optimizerG.step()
                 # optimizerD.step()
 
@@ -229,10 +200,10 @@ def main():
                 optimizerG.zero_grad()
                 optimizerD.zero_grad()
                 x_hat.detach_().requires_grad_()
-                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                r_hat, D_hat_res_list = D(x_hat, mark, i)
                 lossDfake = criterionDfake(r_hat)
 
-                r, D_res_list = D(x, g_y, i)
+                r, D_res_list = D(img, mark, i)
                 lossDreal = criterionDreal(r)
 
                 lossD = lossDfake + lossDreal
@@ -240,10 +211,10 @@ def main():
                 optimizerD.step()
 
                 optimizerD.zero_grad()
-                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                r_hat, D_hat_res_list = D(x_hat, mark, i)
                 lossDfake = criterionDfake(r_hat)
 
-                r, D_res_list = D(x, g_y, i)
+                r, D_res_list = D(img, mark, i)
                 lossDreal = criterionDreal(r)
 
                 lossD = lossDfake + lossDreal
@@ -261,17 +232,17 @@ def main():
                 out = (x_hat[0] * 255).permute([1, 2, 0])
                 out1 = out.type(torch.int32).to(cpu).numpy()
 
-                out = (x[0] * 255).permute([1, 2, 0])
+                out = (img[0] * 255).permute([1, 2, 0])
                 out2 = out.type(torch.int32).to(cpu).numpy()
 
-                out = (g_y[0] * 255).permute([1, 2, 0])
+                out = (mark[0] * 255).permute([1, 2, 0])
                 out3 = out.type(torch.int32).to(cpu).numpy()
                 accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
                 ssim = metrics.structural_similarity(out1.astype(np.uint8).clip(0, 255), out2.astype(np.uint8).clip(0, 255), multichannel=True)
                 print_fun(
-                    'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tMatch: %.3f\tSSIM: %.3f'
+                    'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'
                     % (step, epoch, num_epochs, i_batch, len(data_loader),
-                       lossD.item(), lossG.item(), accuracy, ssim)
+                       lossD.item(), accuracy, ssim)
                 )
 
                 image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
@@ -280,7 +251,7 @@ def main():
                     global_step=step,
                     dataformats='HWC'
                 )
-                writer.add_scalar('loss_g', lossG.item(), global_step=step)
+                # writer.add_scalar('loss_g', lossG.item(), global_step=step)
                 writer.add_scalar('loss_d', lossD.item(), global_step=step)
                 writer.add_scalar('match', accuracy, global_step=step)
                 writer.add_scalar('ssim', ssim, global_step=step)
@@ -292,7 +263,6 @@ def main():
                     'epoch': epoch,
                     'lossesG': lossesG,
                     'lossesD': lossesD,
-                    'E_state_dict': E.module.state_dict(),
                     'G_state_dict': G.module.state_dict(),
                     'D_state_dict': D.module.state_dict(),
                     'num_vid': dataset.__len__(),
@@ -310,7 +280,6 @@ def main():
                 'epoch': epoch,
                 'lossesG': lossesG,
                 'lossesD': lossesD,
-                'E_state_dict': E.module.state_dict(),
                 'G_state_dict': G.module.state_dict(),
                 'D_state_dict': D.module.state_dict(),
                 'num_vid': dataset.__len__(),
