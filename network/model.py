@@ -11,7 +11,38 @@ from tqdm import tqdm
 E_LEN = 512
 
 
-# components
+class TargetEncoder(nn.Module):
+    def __init__(self):
+        super(TargetEncoder, self).__init__()
+
+    def forward(self, img, lmark):
+        out = torch.cat((img, lmark), dim=-3)  # out 6*224*224
+
+
+class DriverEncoder(nn.Module):
+    def __init__(self):
+        super(DriverEncoder, self).__init__()
+
+    def forward(self, img):
+        pass
+
+
+class Blender(nn.Module):
+    def __init__(self):
+        super(Blender, self).__init__()
+
+    def forward(self, img):
+        pass
+
+
+class Decoder(nn.Module):
+    def __init__(self):
+        super(Decoder, self).__init__()
+
+    def forward(self, img):
+        pass
+
+
 class Embedder(nn.Module):
     def __init__(self, in_height):
         super(Embedder, self).__init__()
@@ -200,7 +231,6 @@ class Discriminator(nn.Module):
     def __init__(self, num_videos, path_to_Wi, batch_size, finetuning=False, e_finetuning=None):
         super(Discriminator, self).__init__()
         self.path_to_Wi = path_to_Wi
-        self.gpu_num = torch.cuda.device_count()
         self.relu = nn.LeakyReLU()
 
         # in 6*224*224
@@ -263,9 +293,6 @@ class Discriminator(nn.Module):
         out = self.relu(out)
 
         out = out.squeeze(-1)  # out B*512*1
-
-        batch_start_idx = torch.cuda.current_device() * x.shape[0] // self.gpu_num
-        batch_end_idx = (torch.cuda.current_device() + 1) * x.shape[0] // self.gpu_num
 
         if self.finetuning:
             out = torch.bmm(out.transpose(1, 2), (self.w_prime.unsqueeze(0).expand(out.shape[0], 512, 1))) + self.b

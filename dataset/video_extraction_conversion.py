@@ -4,8 +4,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 import os
 
-from webcam_demo.webcam_extraction_conversion import crop_and_reshape_preds, crop_and_reshape_img
-
 
 def select_frames(video_path, K):
     cap = cv2.VideoCapture(video_path)
@@ -68,15 +66,15 @@ def draw_landmark(landmark, canvas=None, size=None):
         canvas = (np.zeros(size)).astype(np.uint8)
 
     colors = [
-        (0, 128, 0),
-        (220, 148, 0),
-        (220, 148, 0),
-        (165, 0, 0),
-        (165, 0, 0),
-        (0, 0, 165),
-        (0, 0, 165),
-        # (160, 160, 160),
-        (128, 0, 128),
+        (0, 255, 0),
+        (255, 255, 0),
+        (255, 255, 0),
+        (255, 0, 0),
+        (255, 0, 0),
+        (0, 0, 255),
+        (0, 0, 255),
+        (0, 255, 255),
+        (0, 255, 255),
     ]
 
     chin = landmark[0:17]
@@ -87,7 +85,7 @@ def draw_landmark(landmark, canvas=None, size=None):
     right_eye = landmark[42:48]
     right_eye = np.concatenate((right_eye, [landmark[42]]))
     nose1 = landmark[27:31]
-    nose1 = np.concatenate((nose1, [landmark[33]]))
+    # nose1 = np.concatenate((nose1, [landmark[33]]))
     nose2 = landmark[31:36]
     mouth = landmark[48:60]
     mouth = np.concatenate((mouth, [landmark[48]]))
@@ -96,7 +94,7 @@ def draw_landmark(landmark, canvas=None, size=None):
     lines = np.array([
         chin, left_brow, right_brow,
         left_eye, right_eye, nose1, nose2,
-        # mouth_internal,
+        mouth_internal,
         mouth,
     ])
     for i, line in enumerate(lines):
@@ -104,7 +102,7 @@ def draw_landmark(landmark, canvas=None, size=None):
         cv2.polylines(
             canvas,
             np.int32([line]), False,
-            cur_color, thickness=2, lineType=cv2.LINE_AA
+            cur_color, thickness=1, lineType=cv2.LINE_AA
         )
 
     return canvas
@@ -159,52 +157,52 @@ def select_images_frames(path_to_images):
     return images_list
 
 
-def generate_cropped_landmarks(frames_list, face_aligner, pad=50):
-    fa = face_aligner
-    frame_landmark_list = []
-
-    for i in range(len(frames_list)):
-        try:
-            input = frames_list[i]
-            preds = fa.get_landmarks(input)[0]
-
-            input = crop_and_reshape_img(input, preds, pad=pad)
-            preds = crop_and_reshape_preds(preds, pad=pad)
-
-            dpi = 100
-            fig = plt.figure(figsize=(input.shape[1] / dpi, input.shape[0] / dpi), dpi=dpi)
-            ax = fig.add_subplot(1, 1, 1)
-            ax.imshow(np.ones(input.shape))
-            plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-            # chin
-            ax.plot(preds[0:17, 0], preds[0:17, 1], marker='', markersize=5, linestyle='-', color='green', lw=2)
+# def generate_cropped_landmarks(frames_list, face_aligner, pad=50):
+#     fa = face_aligner
+#     frame_landmark_list = []
+#
+#     for i in range(len(frames_list)):
+#         try:
+#             input = frames_list[i]
+#             preds = fa.get_landmarks(input)[0]
+#
+#             input = crop_and_reshape_img(input, preds, pad=pad)
+#             preds = crop_and_reshape_preds(preds, pad=pad)
+#
+#             dpi = 100
+#             fig = plt.figure(figsize=(input.shape[1] / dpi, input.shape[0] / dpi), dpi=dpi)
+#             ax = fig.add_subplot(1, 1, 1)
+#             ax.imshow(np.ones(input.shape))
+#             plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+#
+#             chin
+            # ax.plot(preds[0:17, 0], preds[0:17, 1], marker='', markersize=5, linestyle='-', color='green', lw=2)
             # left and right eyebrow
-            ax.plot(preds[17:22, 0], preds[17:22, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
-            ax.plot(preds[22:27, 0], preds[22:27, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
+            # ax.plot(preds[17:22, 0], preds[17:22, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
+            # ax.plot(preds[22:27, 0], preds[22:27, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
             # nose
-            ax.plot(preds[27:31, 0], preds[27:31, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
-            ax.plot(preds[31:36, 0], preds[31:36, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
+            # ax.plot(preds[27:31, 0], preds[27:31, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
+            # ax.plot(preds[31:36, 0], preds[31:36, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
             # left and right eye
-            ax.plot(preds[36:42, 0], preds[36:42, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
-            ax.plot(preds[42:48, 0], preds[42:48, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
+            # ax.plot(preds[36:42, 0], preds[36:42, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
+            # ax.plot(preds[42:48, 0], preds[42:48, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
             # outer and inner lip
-            ax.plot(preds[48:60, 0], preds[48:60, 1], marker='', markersize=5, linestyle='-', color='purple', lw=2)
-            ax.plot(preds[60:68, 0], preds[60:68, 1], marker='', markersize=5, linestyle='-', color='pink', lw=2)
-            ax.axis('off')
-
-            fig.canvas.draw()
-
-            data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-            frame_landmark_list.append((input, data))
-            plt.close(fig)
-        except:
-            print('Error: Video corrupted or no landmarks visible')
-
-    for i in range(len(frames_list) - len(frame_landmark_list)):
-        # filling frame_landmark_list in case of error
-        frame_landmark_list.append(frame_landmark_list[i])
-
-    return frame_landmark_list
+            # ax.plot(preds[48:60, 0], preds[48:60, 1], marker='', markersize=5, linestyle='-', color='purple', lw=2)
+            # ax.plot(preds[60:68, 0], preds[60:68, 1], marker='', markersize=5, linestyle='-', color='pink', lw=2)
+            # ax.axis('off')
+            #
+            # fig.canvas.draw()
+            #
+            # data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+            # data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            #
+            # frame_landmark_list.append((input, data))
+            # plt.close(fig)
+        # except:
+        #     print('Error: Video corrupted or no landmarks visible')
+    #
+    # for i in range(len(frames_list) - len(frame_landmark_list)):
+    #     filling frame_landmark_list in case of error
+        # frame_landmark_list.append(frame_landmark_list[i])
+    #
+    # return frame_landmark_list

@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
     parser.add_argument('--frame-shape', default=256, type=int)
     parser.add_argument('--workers', default=4, type=int)
-    parser.add_argument('--fa-device', default='cuda:0')
+    parser.add_argument('--fa-device', default='cuda:0' if torch.cuda.is_available() else 'cpu')
 
     return parser.parse_args()
 
@@ -45,17 +45,15 @@ def print_fun(s):
 def main():
     args = parse_args()
     """Create dataset and net"""
-    display_training = False
     matplotlib.use('agg')
-    device = torch.device("cuda")
     cpu = torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else cpu
     batch_size = args.batch_size
     frame_shape = args.frame_shape
     path_to_Wi = os.path.join(args.train_dir, 'wi_weights')
     K = args.k
     if not os.path.exists(path_to_Wi):
         os.makedirs(path_to_Wi)
-
 
     if args.preprocessed:
         dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, path_to_Wi=path_to_Wi, frame_shape=frame_shape)

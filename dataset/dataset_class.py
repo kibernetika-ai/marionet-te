@@ -71,22 +71,6 @@ class PreprocessDataset(Dataset):
         self.frame_shape = frame_shape
 
         self.video_dirs = glob.glob(os.path.join(path_to_preprocess, '*/*'))
-        # self.W_i = None
-        # if self.path_to_Wi is not None:
-        #     if self.W_i is None:
-        #         try:
-        #             Load
-                    # W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar',
-                    #                  map_location='cpu')['W_i'].requires_grad_(False)
-                    # self.W_i = W_i
-                # except:
-                #     print("error loading: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
-                #     print("Initializing: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
-                #     import sys
-                #     sys.stdout.flush()
-                #     w_i = torch.rand(512, len(self))
-                #     torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
-                #     self.W_i = w_i
 
     def __len__(self):
         return len(self.video_dirs)
@@ -124,7 +108,7 @@ class PreprocessDataset(Dataset):
                 frame = cv2.resize(frame, (self.frame_shape, self.frame_shape), interpolation=cv2.INTER_AREA)
                 cur_landmark /= [x_factor, y_factor]
             lmark = draw_landmark(cur_landmark, size=frame.shape)
-            # cv2.imshow('img', lmark)
+            # cv2.imshow('img', np.hstack((frame, lmark))[:, :, ::-1])
             # cv2.waitKey(0)
             # exit()
             frame_mark.append((frame, lmark))
