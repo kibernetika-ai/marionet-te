@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 
@@ -23,6 +25,39 @@ class WarpAlignBlock(nn.Module):
 def conv3x3(in_channels, out_channels, stride=1):
     return nn.Conv2d(in_channels, out_channels, kernel_size=3,
                      stride=stride, padding=1, bias=False)
+
+
+def positionalencoding2d(channels, height, width):
+    """
+    :param channels: dimension of the model
+    :param height: height of the positions
+    :param width: width of the positions
+    :return: d_model*height*width position matrix
+    """
+    if channels % 4 != 0:
+        raise ValueError("Cannot use sin/cos positional encoding with "
+                         "odd dimension (got dim={:d})".format(channels))
+    pe = torch.zeros(channels, height, width)
+    # Each dimension use half of d_model
+    channels = int(channels / 2)
+    div_term = torch.exp(torch.arange(0., channels, 2) *
+                         -(math.log(10000.0) / channels))
+    pos_w = torch.arange(0., width).unsqueeze(1)
+    pos_h = torch.arange(0., height).unsqueeze(1)
+    pe[0:channels:2, :, :] = torch.sin(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
+    pe[1:channels:2, :, :] = torch.cos(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
+    pe[channels::2, :, :] = torch.sin(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+    pe[channels + 1::2, :, :] = torch.cos(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+
+    return pe
+
+
+class SinusoidalEncoding(nn.Module):
+    def __init__(self):
+        super(SinusoidalEncoding, self).__init__()
+
+    def forward(self, x):
+        pass
 
 
 # Residual block

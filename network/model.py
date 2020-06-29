@@ -41,7 +41,7 @@ class Blender(nn.Module):
     def __init__(self):
         super(Blender, self).__init__()
 
-    def forward(self, zx, ):
+    def forward(self, zx, zy):
         # 3 image attention blocks
         pass
 
@@ -55,6 +55,8 @@ class Decoder(nn.Module):
         self.warp3 = blocks.WarpAlignBlock(im_size, im_size)
         self.warp4 = blocks.WarpAlignBlock(im_size, im_size)
 
+        self.conv = nn.Conv2d(im_size, im_size, 1, 1)
+
     def forward(self, z_xy, s1, s2, s3, s4):
         # 4 warp-alignment blocks
         # TODO: maybe in up-down direction
@@ -62,7 +64,10 @@ class Decoder(nn.Module):
         u = self.warp1(s2, u)
         u = self.warp1(s3, u)
         u = self.warp1(s4, u)
-        return u
+
+        out = self.conv(u)
+        out = torch.tanh(out)
+        return out
 
 
 class Generator(nn.Module):
