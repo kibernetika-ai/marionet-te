@@ -59,6 +59,24 @@ class ResidualDownBlock(ResidualBlock):
         super(ResidualDownBlock, self).__init__(in_channels, out_channels, stride=stride, downsample=downsample)
 
 
+class ImageAttention(nn.Module):
+    def __init__(self, im_size):
+        super(ImageAttention, self).__init__()
+
+        self.conv3x3 = conv3x3(im_size, im_size)
+        self.inst_norm1 = nn.InstanceNorm2d(im_size, affine=True)
+        self.inst_norm2 = nn.InstanceNorm2d(im_size, affine=True)
+
+    def forward(self, q, k, v):
+        # res = attention
+        # out = res + q
+        # res = instance norm
+        # out = conv3x3
+        # out = out + res
+        # out = instance norm
+        pass
+
+
 class SelfAttention(nn.Module):
     def __init__(self, in_channel):
         super(SelfAttention, self).__init__()
