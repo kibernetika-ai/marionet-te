@@ -1,8 +1,7 @@
 """Main"""
 import argparse
-import os
+import sys
 import time
-from datetime import datetime
 
 import matplotlib
 from skimage import metrics
@@ -16,7 +15,6 @@ from dataset.dataset_class import PreprocessDataset
 from dataset.dataset_class import VidDataSet
 from dataset.video_extraction_conversion import *
 from loss.loss_discriminator import *
-from loss.loss_generator import *
 from network.model import *
 
 

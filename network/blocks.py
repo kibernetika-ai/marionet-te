@@ -6,15 +6,15 @@ class ResBlockDown(nn.Module):
         super(ResBlockDown, self).__init__()
         
         self.relu = nn.LeakyReLU()
-        self.relu_inplace = nn.LeakyReLU(inplace = False)
+        self.relu_inplace = nn.LeakyReLU(inplace=True)
         self.avg_pool2d = nn.AvgPool2d(2)
         
         #left
-        self.conv_l1 = nn.utils.spectral_norm(nn.Conv2d(in_channel, out_channel, 1,))
+        self.conv_l1 = nn.Conv2d(in_channel, out_channel, 1,)
         
         #right
-        self.conv_r1 = nn.utils.spectral_norm(nn.Conv2d(in_channel, out_channel, conv_size, padding = padding_size))
-        self.conv_r2 = nn.utils.spectral_norm(nn.Conv2d(out_channel, out_channel, conv_size, padding = padding_size))
+        self.conv_r1 = nn.Conv2d(in_channel, out_channel, conv_size, padding=padding_size)
+        self.conv_r2 = nn.Conv2d(out_channel, out_channel, conv_size, padding=padding_size)
 
     def forward(self, x):
         res = x
@@ -34,6 +34,48 @@ class ResBlockDown(nn.Module):
         out = out_res + out
         
         return out
+
+
+# 3x3 convolution
+def conv3x3(in_channels, out_channels, stride=1):
+    return nn.Conv2d(in_channels, out_channels, kernel_size=3,
+                     stride=stride, padding=1, bias=False)
+
+
+# Residual block
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = conv3x3(in_channels, out_channels, stride)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(out_channels, out_channels)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = downsample
+
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        if self.downsample:
+            residual = self.downsample(x)
+        out += residual
+        out = self.relu(out)
+        return out
+
+
+class ResidualDownBlock(ResidualBlock):
+    def __init__(self, in_channels, out_channels, stride=1):
+        downsample = nn.Sequential(
+            conv3x3(self.in_channels, out_channels, stride=2),
+            nn.BatchNorm2d(out_channels)
+        )
+        super(ResidualDownBlock, self).__init__(in_channels, out_channels, stride=stride, downsample=downsample)
+
+
 
 class SelfAttention(nn.Module):
     def __init__(self, in_channel):
