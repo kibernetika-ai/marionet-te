@@ -36,6 +36,23 @@ class ResBlockDown(nn.Module):
         return out
 
 
+class WarpAlignBlock(nn.Module):
+    def __init__(self, in_channel, out_channel):
+        super(WarpAlignBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channel, out_channel, kernel_size=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(in_channel, out_channel, kernel_size=1, padding=1, bias=False)
+        self.upsample = nn.Upsample(scale_factor=2)
+
+    def forward(self, s, u):
+        f_u = self.conv1(u)
+        pose_adapt = nn.functional.grid_sample(s, f_u.permute([0, 2, 3, 1]))
+
+        out = torch.cat([f_u, pose_adapt])
+        out = self.conv2(out)
+        out = self.upsample(out)
+        return out
+
+
 # 3x3 convolution
 def conv3x3(in_channels, out_channels, stride=1):
     return nn.Conv2d(in_channels, out_channels, kernel_size=3,
