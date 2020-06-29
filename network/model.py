@@ -80,6 +80,8 @@ class Generator(nn.Module):
         z_xy = self.blender(zx, zy)
         result = self.decoder(z_xy, s1, s2, s3, s4)
 
+        return result
+
 
 class Discriminator(nn.Module):
     def __init__(self, num_videos, batch_size):

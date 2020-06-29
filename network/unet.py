@@ -56,7 +56,6 @@ class UNet(nn.Module):
         s2 = nn.functional.grid_sample(s2, fy2.permute([0, 2, 3, 1]))
         s3 = nn.functional.grid_sample(s3, fy3.permute([0, 2, 3, 1]))
         s4 = nn.functional.grid_sample(s4, fy4.permute([0, 2, 3, 1]))
-        __import__('ipdb').set_trace()
 
         return s1, s2, s3, s4, zy
 
