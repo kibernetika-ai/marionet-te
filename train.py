@@ -107,6 +107,8 @@ def main():
     num_epochs = args.epochs
 
     # initiate checkpoint if inexistant
+    if not os.path.exists(args.train_dir):
+        os.makedirs(args.train_dir)
     if not os.path.isfile(path_to_chkpt):
         def init_weights(m):
             if type(m) == nn.Conv2d:
@@ -172,6 +174,7 @@ def main():
 
                 # train G and D
                 fake = G(img, frames, marks)
+
                 fake_score, d_fake_list = D(fake, mark)
                 with torch.no_grad():
                     real_score, d_real_list = D(img, mark)

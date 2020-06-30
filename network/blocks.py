@@ -99,13 +99,14 @@ class ResidualBlock(nn.Module):
 class ResidualDownBlock(ResidualBlock):
     def __init__(self, in_channels, out_channels, stride=2, norm=nn.BatchNorm2d):
         downsample = nn.Sequential(
+            conv3x3(in_channels, out_channels),
             nn.AvgPool2d(2),
         )
         if norm is not None:
             if norm is nn.InstanceNorm2d:
-                downsample.add_module('1', norm(out_channels, affine=True))
+                downsample.add_module('2', norm(out_channels, affine=True))
             else:
-                downsample.add_module('1', norm(out_channels))
+                downsample.add_module('2', norm(out_channels))
         super(ResidualDownBlock, self).__init__(
             in_channels, out_channels, stride=stride, downsample=downsample, norm=norm
         )

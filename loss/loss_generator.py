@@ -1,3 +1,4 @@
+import os
 import sys
 
 import importlib
@@ -82,7 +83,9 @@ class LossCnt(nn.Module):
         self.VGG19.to(device)
 
         # Inject vgg model code module as 'MainModel'
-        vgg_code = importlib.import_module(vggface_body_path)
+        dirname = os.path.dirname(vggface_body_path)
+        sys.path.append(dirname)
+        vgg_code = importlib.import_module(os.path.splitext(os.path.basename(vggface_body_path))[0])
         sys.modules['MainModel'] = vgg_code
 
         full_vgg_face = torch.load(vggface_weight_path, map_location='cpu')

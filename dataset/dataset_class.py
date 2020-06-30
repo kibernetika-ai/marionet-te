@@ -62,6 +62,8 @@ class PreprocessDataset(Dataset):
         video_dir = self.video_dirs[vid_idx]
         lm_path = os.path.join(video_dir, 'landmarks.npy')
         jpg_paths = sorted(glob.glob(os.path.join(video_dir, '*.jpg')))
+        if not jpg_paths:
+            raise RuntimeError('Dataset does not contain .jpg files.')
         if os.path.exists(lm_path):
             all_landmarks = np.load(lm_path)
 

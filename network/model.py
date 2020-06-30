@@ -15,19 +15,19 @@ class TargetEncoder(nn.Module):
 
     def forward(self, img, lmark):
         out = torch.cat((img, lmark), dim=-3)  # out 6*224*224
-        s1, s2, s3, s4, zy, flow_map = self.unet(out)
+        s1, s2, s3, s4, zy = self.unet(out)
 
-        return s1, s2, s3, s4, zy, flow_map
+        return s1, s2, s3, s4, zy
 
 
 class DriverEncoder(nn.Module):
     def __init__(self):
         super(DriverEncoder, self).__init__()
 
-        self.res1 = blocks.ResidualDownBlock(64, 128, norm=nn.InstanceNorm2d)
-        self.res2 = blocks.ResidualDownBlock(128, 256, norm=nn.InstanceNorm2d)
-        self.res3 = blocks.ResidualDownBlock(256, 512, norm=nn.InstanceNorm2d)
-        self.res4 = blocks.ResidualDownBlock(512, 512, norm=nn.InstanceNorm2d)
+        self.res1 = blocks.ResidualDownBlock(3, 64, norm=nn.InstanceNorm2d)
+        self.res2 = blocks.ResidualDownBlock(64, 128, norm=nn.InstanceNorm2d)
+        self.res3 = blocks.ResidualDownBlock(128, 256, norm=nn.InstanceNorm2d)
+        self.res4 = blocks.ResidualDownBlock(256, 512, norm=nn.InstanceNorm2d)
 
     def forward(self, drv_lmark):
         out = self.res1(drv_lmark)
@@ -49,8 +49,8 @@ class Blender(nn.Module):
     def forward(self, zx, zy):
         # 3 image attention blocks
         z_xy = self.att(zx, zy)
-        z_xy = self.att2(z_xy, zy)
-        z_xy = self.att3(z_xy, zy)
+        z_xy = self.att2(zx, z_xy)
+        z_xy = self.att3(zx, z_xy)
 
         return z_xy
 
