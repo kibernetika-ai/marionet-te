@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class LossDSCreal(nn.Module):
     """
     Inputs: r
@@ -11,8 +12,9 @@ class LossDSCreal(nn.Module):
         
     def forward(self, r):
         # loss = torch.max(torch.zeros_like(r), 1 - r)
-        loss = self.relu(1.0-r)
+        loss = self.relu(1.0 - r)
         return loss.mean()
+
 
 class LossDSCfake(nn.Module):
     """
@@ -24,5 +26,5 @@ class LossDSCfake(nn.Module):
         
     def forward(self, rhat):
         # loss = torch.max(torch.zeros_like(rhat),1 + rhat)
-        loss = self.relu(1.0+rhat)
+        loss = self.relu(1.0 + rhat)
         return loss.mean()

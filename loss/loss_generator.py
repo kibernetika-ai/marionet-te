@@ -1,30 +1,99 @@
+import sys
+
+import importlib
 import torch
 import torch.nn as nn
-import imp
+from torch.nn import functional as F
 import torchvision
 from torchvision.models import vgg19
 from network import model
-from network.model import Cropped_VGG19
+
+
+class CroppedVGG19(nn.Module):
+    def __init__(self):
+        super(CroppedVGG19, self).__init__()
+
+        self.conv1_1 = nn.Conv2d(3, 64, 3)
+        self.conv1_2 = nn.Conv2d(64, 64, 3)
+        self.conv2_1 = nn.Conv2d(64, 128, 3)
+        self.conv2_2 = nn.Conv2d(128, 128, 3)
+        self.conv3_1 = nn.Conv2d(128, 256, 3)
+        self.conv3_2 = nn.Conv2d(256, 256, 3)
+        self.conv3_3 = nn.Conv2d(256, 256, 3)
+        self.conv4_1 = nn.Conv2d(256, 512, 3)
+        self.conv4_2 = nn.Conv2d(512, 512, 3)
+        self.conv4_3 = nn.Conv2d(512, 512, 3)
+        self.conv5_1 = nn.Conv2d(512, 512, 3)
+        # self.conv5_2 = nn.Conv2d(512,512,3)
+        # self.conv5_3 = nn.Conv2d(512,512,3)
+
+    def forward(self, x):
+        conv1_1_pad = F.pad(x, [1, 1, 1, 1])
+        conv1_1 = self.conv1_1(conv1_1_pad)
+        relu1_1 = F.relu(conv1_1)
+        conv1_2_pad = F.pad(relu1_1, [1, 1, 1, 1])
+        conv1_2 = self.conv1_2(conv1_2_pad)
+        relu1_2 = F.relu(conv1_2)
+        pool1_pad = F.pad(relu1_2, [0, 1, 0, 1], value=float('-inf'))
+        pool1 = F.max_pool2d(pool1_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
+        conv2_1_pad = F.pad(pool1, [1, 1, 1, 1])
+        conv2_1 = self.conv2_1(conv2_1_pad)
+        relu2_1 = F.relu(conv2_1)
+        conv2_2_pad = F.pad(relu2_1, [1, 1, 1, 1])
+        conv2_2 = self.conv2_2(conv2_2_pad)
+        relu2_2 = F.relu(conv2_2)
+        pool2_pad = F.pad(relu2_2, [0, 1, 0, 1], value=float('-inf'))
+        pool2 = F.max_pool2d(pool2_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
+        conv3_1_pad = F.pad(pool2, [1, 1, 1, 1])
+        conv3_1 = self.conv3_1(conv3_1_pad)
+        relu3_1 = F.relu(conv3_1)
+        conv3_2_pad = F.pad(relu3_1, [1, 1, 1, 1])
+        conv3_2 = self.conv3_2(conv3_2_pad)
+        relu3_2 = F.relu(conv3_2)
+        conv3_3_pad = F.pad(relu3_2, [1, 1, 1, 1])
+        conv3_3 = self.conv3_3(conv3_3_pad)
+        relu3_3 = F.relu(conv3_3)
+        pool3_pad = F.pad(relu3_3, [0, 1, 0, 1], value=float('-inf'))
+        pool3 = F.max_pool2d(pool3_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
+        conv4_1_pad = F.pad(pool3, [1, 1, 1, 1])
+        conv4_1 = self.conv4_1(conv4_1_pad)
+        relu4_1 = F.relu(conv4_1)
+        conv4_2_pad = F.pad(relu4_1, [1, 1, 1, 1])
+        conv4_2 = self.conv4_2(conv4_2_pad)
+        relu4_2 = F.relu(conv4_2)
+        conv4_3_pad = F.pad(relu4_2, [1, 1, 1, 1])
+        conv4_3 = self.conv4_3(conv4_3_pad)
+        relu4_3 = F.relu(conv4_3)
+        pool4_pad = F.pad(relu4_3, [0, 1, 0, 1], value=float('-inf'))
+        pool4 = F.max_pool2d(pool4_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
+        conv5_1_pad = F.pad(pool4, [1, 1, 1, 1])
+        conv5_1 = self.conv5_1(conv5_1_pad)
+        relu5_1 = F.relu(conv5_1)
+
+        return [relu1_1, relu2_1, relu3_1, relu4_1, relu5_1]
 
 
 class LossCnt(nn.Module):
-    def __init__(self, VGGFace_body_path, VGGFace_weight_path, device):
+    def __init__(self, vggface_body_path, vggface_weight_path, device):
         super(LossCnt, self).__init__()
 
         self.VGG19 = vgg19(pretrained=True)
         self.VGG19.eval()
         self.VGG19.to(device)
 
-        MainModel = imp.load_source('MainModel', VGGFace_body_path)
-        full_VGGFace = torch.load(VGGFace_weight_path, map_location='cpu')
-        cropped_VGGFace = Cropped_VGG19()
-        cropped_VGGFace.load_state_dict(full_VGGFace.state_dict(), strict=False)
-        self.VGGFace = cropped_VGGFace
+        # Inject vgg model code module as 'MainModel'
+        vgg_code = importlib.import_module(vggface_body_path)
+        sys.modules['MainModel'] = vgg_code
+
+        full_vgg_face = torch.load(vggface_weight_path, map_location='cpu')
+        cropped_vgg_face = CroppedVGG19()
+        cropped_vgg_face.load_state_dict(full_vgg_face.state_dict(), strict=False)
+        self.VGGFace = cropped_vgg_face
         self.VGGFace.eval()
         self.VGGFace.to(device)
 
         self.l1_loss = nn.L1Loss()
-        self.conv_idx_list = [2, 7, 12, 21, 30]  # idxes of conv layers in VGG19 cf.paper
+        self.conv_idx_list = [3, 8, 13, 22, 31]  # idxes of relu layers in VGG19 cf.paper
 
     def forward(self, x, x_hat, vgg19_weight=1.5e-1, vggface_weight=2.5e-2):
         """Retrieve vggface feature maps"""
@@ -70,21 +139,6 @@ class LossCnt(nn.Module):
         for h in vgg_x_handles:
             h.remove()
 
-        # retrieve features for x_hat
-        # conv_idx_iter = 0
-        # for i,m in enumerate(self.VGG19.modules()):
-        #    if i <= 30: #30 is last conv layer
-        #        if type(m) is not torch.nn.Sequential and type(m) is not torchvision.models.vgg.VGG:
-        #        #only pass through nn.module layers
-        #            if i == self.conv_idx_list[conv_idx_iter]:
-        #                if conv_idx_iter < len(self.conv_idx_list)-1:
-        #                    conv_idx_iter += 1
-        #                x_hat = m(x_hat)
-        #                vgg_xhat_features.append(x_hat)
-        #                x_hat.detach_() #reset gradient from output of conv layer
-        #            else:
-        #                x_hat = m(x_hat)
-
         vgg_xhat_handles = []
         conv_idx_iter = 0
 
@@ -111,17 +165,20 @@ class LossCnt(nn.Module):
 
 
 class LossAdv(nn.Module):
-    def __init__(self, FM_weight=1e1):
+    """
+    Feature-matching loss
+    """
+    def __init__(self, fm_weight=10):
         super(LossAdv, self).__init__()
         self.l1_loss = nn.L1Loss()
-        self.FM_weight = FM_weight
+        self.FM_weight = fm_weight
 
-    def forward(self, r_hat, D_res_list, D_hat_res_list):
+    def forward(self, fake, d_real_list, d_fake_list):
         lossFM = 0
-        for res, res_hat in zip(D_res_list, D_hat_res_list):
-            lossFM += self.l1_loss(res, res_hat)
+        for real, fake in zip(d_real_list, d_fake_list):
+            lossFM += self.l1_loss(real, fake)
 
-        return -r_hat.mean() + lossFM * self.FM_weight
+        return -fake.mean() + lossFM * self.FM_weight
 
 
 class LossMatch(nn.Module):
@@ -132,13 +189,6 @@ class LossMatch(nn.Module):
         self.device = device
 
     def forward(self, e_vectors, W, i):
-        # loss = torch.zeros(e_vectors.shape[0],1).to(self.device)
-        # for b in range(e_vectors.shape[0]):
-        #     for k in range(e_vectors.shape[1]):
-        #         loss[b] += torch.abs(e_vectors[b,k].squeeze() - W[:,b]).mean()
-        #     loss[b] = loss[b]/e_vectors.shape[1]
-        # loss = loss.mean()
-
         W = W.unsqueeze(-1).expand(model.E_LEN, W.shape[1], e_vectors.shape[1]).transpose(0, 1).transpose(1, 2)
         # B,8,512
         W = W.reshape(-1, model.E_LEN)
@@ -157,19 +207,20 @@ class LossG(nn.Module):
     output: lossG
     """
 
-    def __init__(self, VGGFace_body_path, VGGFace_weight_path, device):
+    def __init__(self, vggface_body_path, vggface_weight_path, device):
         super(LossG, self).__init__()
 
-        self.lossCnt = LossCnt(VGGFace_body_path, VGGFace_weight_path, device)
+        self.perceptual = LossCnt(vggface_body_path, vggface_weight_path, device)
         self.lossAdv = LossAdv()
         self.lossMatch = LossMatch(device=device)
 
-    def forward(self, x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, W, i):
-        loss_cnt = self.lossCnt(x, x_hat)
-        loss_adv = self.lossAdv(r_hat, D_res_list, D_hat_res_list)
-        loss_match = self.lossMatch(e_vectors, W, i)
-        # print(loss_cnt.item(), loss_adv.item(), loss_match.item())
-        return loss_cnt + loss_adv + loss_match
+    def forward(self, img, fake, fake_score, d_real_res_list, d_fake_res_list):
+        loss_adv = self.lossAdv(fake_score, d_real_res_list, d_fake_res_list)
+        perceptual = self.perceptual(img, fake)
+        # print(perceptual.item(), loss_adv.item())
+        # perceptual = Lp + Lpf
+        # loss_adv = Lgan + Lfm
+        return loss_adv + perceptual
 
 
 class LossGF(nn.Module):

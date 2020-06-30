@@ -98,7 +98,7 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, num_videos, batch_size):
+    def __init__(self):
         super(Discriminator, self).__init__()
 
         self.res1 = blocks.ResidualDownBlock(64, 128, norm=None)

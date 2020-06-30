@@ -15,7 +15,9 @@ from dataset.dataset_class import PreprocessDataset
 from dataset.dataset_class import VidDataSet
 from dataset.video_extraction_conversion import *
 from loss.loss_discriminator import *
+from loss.loss_generator import *
 from network.model import *
+from network.resblocks import *
 
 
 def parse_args():
@@ -75,7 +77,7 @@ def main():
     path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
 
     G = nn.DataParallel(Generator(frame_shape).to(device))
-    D = nn.DataParallel(Discriminator(dataset.__len__(), args.batch_size).to(device))
+    D = nn.DataParallel(SNResNetProjectionDiscriminator().to(device))
 
     G.train()
     D.train()
@@ -91,14 +93,16 @@ def main():
         amsgrad=False)
 
     """Criterion"""
-    criterionDreal = LossDSCreal()
-    criterionDfake = LossDSCfake()
+    loss_d_real = LossDSCreal()
+    loss_d_fake = LossDSCfake()
+    loss_g = LossG(
+        os.path.join(args.vggface_dir, 'Pytorch_VGGFACE_IR.py'),
+        os.path.join(args.vggface_dir, 'Pytorch_VGGFACE.pth'),
+        device
+    )
 
     """Training init"""
     epoch = i_batch = 0
-    lossesG = []
-    lossesD = []
-    i_batch_current = 0
 
     num_epochs = args.epochs
 
@@ -114,8 +118,6 @@ def main():
         print_fun('Initiating new checkpoint...')
         torch.save({
             'epoch': epoch,
-            'lossesG': lossesG,
-            'lossesD': lossesD,
             'G_state_dict': G.module.state_dict(),
             'D_state_dict': D.module.state_dict(),
             'num_vid': dataset.__len__(),
@@ -129,8 +131,6 @@ def main():
     checkpoint = torch.load(path_to_chkpt, map_location=cpu)
     G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
     D.module.load_state_dict(checkpoint['D_state_dict'])
-    lossesG = checkpoint['lossesG']
-    lossesD = checkpoint['lossesD']
     optimizerG.load_state_dict(checkpoint['optimizerG'])
     optimizerD.load_state_dict(checkpoint['optimizerD'])
     prev_step = checkpoint['i_batch']
@@ -171,63 +171,35 @@ def main():
                 optimizerD.zero_grad()
 
                 # train G and D
-                x_hat = G(img, frames, marks)
-                exit()
-                r_hat, D_hat_res_list = D(x_hat, mark, i)
+                fake = G(img, frames, marks)
+                fake_score, d_fake_list = D(fake, mark)
                 with torch.no_grad():
-                    r, D_res_list = D(img, mark, i)
-                """####################################################################################################################################################
-                r, D_res_list = D(x, g_y, i)"""
+                    real_score, d_real_list = D(img, mark)
 
-                # lossG = criterionG(
-                #     x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i[:, i], i
-                # )
-
-                """####################################################################################################################################################
-                lossD = criterionDfake(r_hat) + criterionDreal(r)
-                loss = lossG + lossD
-                loss.backward(retain_graph=False)
+                loss_generator = loss_g(
+                    img, fake, fake_score, real_score, d_fake_list, d_real_list
+                )
+                loss_generator.backward(retain_graph=False)
                 optimizerG.step()
-                optimizerD.step()"""
-
-                # lossG.backward(retain_graph=False)
-                optimizerG.step()
-                # optimizerD.step()
 
             with torch.autograd.enable_grad():
                 optimizerG.zero_grad()
                 optimizerD.zero_grad()
-                x_hat.detach_().requires_grad_()
-                r_hat, D_hat_res_list = D(x_hat, mark, i)
-                lossDfake = criterionDfake(r_hat)
+                fake.detach_().requires_grad_()
+                fake_score, d_fake_list = D(fake, mark)
+                loss_fake = loss_d_fake(fake_score)
 
-                r, D_res_list = D(img, mark, i)
-                lossDreal = criterionDreal(r)
+                real_score, d_real_list = D(img, mark)
+                loss_real = loss_d_real(real_score)
 
-                lossD = lossDfake + lossDreal
-                lossD.backward(retain_graph=False)
+                loss_d = loss_fake + loss_real
+                loss_d.backward(retain_graph=False)
                 optimizerD.step()
-
-                optimizerD.zero_grad()
-                r_hat, D_hat_res_list = D(x_hat, mark, i)
-                lossDfake = criterionDfake(r_hat)
-
-                r, D_res_list = D(img, mark, i)
-                lossDreal = criterionDreal(r)
-
-                lossD = lossDfake + lossDreal
-                lossD.backward(retain_graph=False)
-                optimizerD.step()
-
-            # for enum, idx in enumerate(i):
-            #     dataset.W_i[:, idx.item()] = D.module.W_i[:, enum]
-                # torch.save({'W_i': D.module.W_i[:, enum].unsqueeze(-1)},
-                #            path_to_Wi + '/W_' + str(idx.item()) + '/W_' + str(idx.item()) + '.tar')
 
             step = epoch * num_batches + i_batch + prev_step
             # Output training stats
             if step % log_step == 0:
-                out = (x_hat[0] * 255).permute([1, 2, 0])
+                out = (fake[0] * 255).permute([1, 2, 0])
                 out1 = out.type(torch.int32).to(cpu).numpy()
 
                 out = (img[0] * 255).permute([1, 2, 0])
@@ -240,7 +212,7 @@ def main():
                 print_fun(
                     'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'
                     % (step, epoch, num_epochs, i_batch, len(data_loader),
-                       lossD.item(), accuracy, ssim)
+                       loss_d.item(), accuracy, ssim)
                 )
 
                 image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
@@ -250,7 +222,7 @@ def main():
                     dataformats='HWC'
                 )
                 # writer.add_scalar('loss_g', lossG.item(), global_step=step)
-                writer.add_scalar('loss_d', lossD.item(), global_step=step)
+                writer.add_scalar('loss_d', loss_d.item(), global_step=step)
                 writer.add_scalar('match', accuracy, global_step=step)
                 writer.add_scalar('ssim', ssim, global_step=step)
                 writer.flush()
@@ -259,8 +231,6 @@ def main():
                 print_fun('Saving latest...')
                 torch.save({
                     'epoch': epoch,
-                    'lossesG': lossesG,
-                    'lossesD': lossesD,
                     'G_state_dict': G.module.state_dict(),
                     'D_state_dict': D.module.state_dict(),
                     'num_vid': dataset.__len__(),
@@ -270,14 +240,11 @@ def main():
                 },
                     path_to_chkpt
                 )
-                dataset.save_w_i()
 
         if epoch % log_epoch == 0:
             print_fun('Saving latest...')
             torch.save({
                 'epoch': epoch,
-                'lossesG': lossesG,
-                'lossesD': lossesD,
                 'G_state_dict': G.module.state_dict(),
                 'D_state_dict': D.module.state_dict(),
                 'num_vid': dataset.__len__(),
@@ -287,7 +254,6 @@ def main():
             },
                 path_to_chkpt
             )
-            dataset.save_w_i()
             print_fun('...Done saving latest')
 
 
