@@ -43,10 +43,14 @@ class Blender(nn.Module):
         super(Blender, self).__init__()
 
         self.att = nn.Transformer()
+        self.att2 = nn.Transformer()
+        self.att3 = nn.Transformer()
 
     def forward(self, zx, zy):
         # 3 image attention blocks
         z_xy = self.att(zx, zy)
+        z_xy = self.att2(z_xy, zy)
+        z_xy = self.att3(z_xy, zy)
 
         return z_xy
 
