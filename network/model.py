@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+
 from network import blocks
 from network import unet
 
@@ -23,10 +24,10 @@ class DriverEncoder(nn.Module):
     def __init__(self):
         super(DriverEncoder, self).__init__()
 
-        self.res1 = blocks.ResidualDownBlock(64, 128)
-        self.res2 = blocks.ResidualDownBlock(128, 256)
-        self.res3 = blocks.ResidualDownBlock(256, 512)
-        self.res4 = blocks.ResidualDownBlock(512, 512)
+        self.res1 = blocks.ResidualDownBlock(64, 128, norm=nn.InstanceNorm2d)
+        self.res2 = blocks.ResidualDownBlock(128, 256, norm=nn.InstanceNorm2d)
+        self.res3 = blocks.ResidualDownBlock(256, 512, norm=nn.InstanceNorm2d)
+        self.res4 = blocks.ResidualDownBlock(512, 512, norm=nn.InstanceNorm2d)
 
     def forward(self, drv_lmark):
         out = self.res1(drv_lmark)
@@ -41,9 +42,13 @@ class Blender(nn.Module):
     def __init__(self):
         super(Blender, self).__init__()
 
+        self.att = nn.Transformer()
+
     def forward(self, zx, zy):
         # 3 image attention blocks
-        pass
+        z_xy = self.att(zx, zy)
+
+        return z_xy
 
 
 class Decoder(nn.Module):
@@ -91,7 +96,12 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, num_videos, batch_size):
         super(Discriminator, self).__init__()
-        pass
 
-    def forward(self, x, y, i):
+        self.res1 = blocks.ResidualDownBlock(64, 128, norm=None)
+        self.res2 = blocks.ResidualDownBlock(128, 256, norm=None)
+        self.res3 = blocks.ResidualDownBlock(256, 512, norm=None)
+        self.res4 = blocks.ResidualDownBlock(512, 512, norm=None)
+        self.res5 = blocks.ResidualDownBlock(512, 512, norm=None)
+
+    def forward(self, x, r, c):
         pass

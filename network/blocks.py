@@ -9,7 +9,7 @@ class WarpAlignBlock(nn.Module):
         super(WarpAlignBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_channel, out_channel, kernel_size=1, padding=1, bias=False)
         self.conv2 = nn.Conv2d(in_channel, out_channel, kernel_size=1, padding=1, bias=False)
-        self.upsample = nn.Upsample(scale_factor=2)
+        self.res_up = ResidualBlockUp(out_channel, out_channel // 2, norm=nn.InstanceNorm2d)
 
     def forward(self, s, u):
         f_u = self.conv1(u)
@@ -17,7 +17,8 @@ class WarpAlignBlock(nn.Module):
 
         out = torch.cat([f_u, pose_adapt])
         out = self.conv2(out)
-        out = self.upsample(out)
+        out = self.res_up(out)
+
         return out
 
 
@@ -57,27 +58,37 @@ class SinusoidalEncoding(nn.Module):
         super(SinusoidalEncoding, self).__init__()
 
     def forward(self, x):
-        pass
+        return x
 
 
 # Residual block
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None, norm=nn.BatchNorm2d):
         super(ResidualBlock, self).__init__()
         self.conv1 = conv3x3(in_channels, out_channels, stride)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        if norm:
+            if norm is nn.InstanceNorm2d:
+                self.bn1 = norm(out_channels, affine=True)
+                self.bn2 = norm(out_channels, affine=True)
+            else:
+                self.bn1 = norm(out_channels)
+                self.bn2 = norm(out_channels)
+        else:
+            self.bn1 = None
+            self.bn2 = None
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(out_channels, out_channels)
-        self.bn2 = nn.BatchNorm2d(out_channels)
         self.downsample = downsample
 
     def forward(self, x):
         residual = x
         out = self.conv1(x)
-        out = self.bn1(out)
+        if self.bn1:
+            out = self.bn1(out)
         out = self.relu(out)
         out = self.conv2(out)
-        out = self.bn2(out)
+        if self.bn2:
+            out = self.bn2(out)
         if self.downsample:
             residual = self.downsample(x)
         out += residual
@@ -86,12 +97,18 @@ class ResidualBlock(nn.Module):
 
 
 class ResidualDownBlock(ResidualBlock):
-    def __init__(self, in_channels, out_channels, stride=2):
+    def __init__(self, in_channels, out_channels, stride=2, norm=nn.BatchNorm2d):
         downsample = nn.Sequential(
             conv3x3(self.in_channels, out_channels, stride=2),
-            nn.BatchNorm2d(out_channels)
         )
-        super(ResidualDownBlock, self).__init__(in_channels, out_channels, stride=stride, downsample=downsample)
+        if norm is not None:
+            if norm is nn.InstanceNorm2d:
+                downsample.add_module('1', norm(out_channels, affine=True))
+            else:
+                downsample.add_module('1', norm(out_channels))
+        super(ResidualDownBlock, self).__init__(
+            in_channels, out_channels, stride=stride, downsample=downsample, norm=norm
+        )
 
 
 class ImageAttention(nn.Module):
@@ -149,15 +166,24 @@ class SelfAttention(nn.Module):
 
 # Residual block
 class ResidualBlockUp(nn.Module):
-    def __init__(self, in_channels, out_channels, is_bilinear=True):
+    def __init__(self, in_channels, out_channels, is_bilinear=True, norm=nn.BatchNorm2d):
         super(ResidualBlockUp, self).__init__()
         self.conv1 = conv3x3(in_channels, out_channels)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        if norm is not None:
+            if norm is nn.InstanceNorm2d:
+                self.bn1 = norm(out_channels, affine=True)
+                self.bn2 = norm(out_channels, affine=True)
+                self.bn3 = norm(out_channels, affine=True)
+            else:
+                self.bn1 = norm(out_channels)
+                self.bn2 = norm(out_channels)
+                self.bn3 = norm(out_channels)
+        else:
+            self.bn1 = self.bn2 = self.bn3 = None
+
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(in_channels, out_channels)
         self.conv3 = conv3x3(out_channels, out_channels)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        self.bn3 = nn.BatchNorm2d(out_channels)
 
         if is_bilinear:
             self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
@@ -181,45 +207,6 @@ class ResidualBlockUp(nn.Module):
 
         out = out + out_res
         out = self.relu(out)
-
-        return out
-
-
-class ResBlockUp(nn.Module):
-    def __init__(self, in_channel, out_channel, out_size=None, scale=2, conv_size=3, padding_size=1, is_bilinear=True):
-        super(ResBlockUp, self).__init__()
-
-        self.in_channel = in_channel
-        self.out_channel = out_channel
-
-        if is_bilinear:
-            self.upsample = nn.Upsample(size=out_size, scale_factor=scale, mode='bilinear', align_corners=True)
-        else:
-            self.upsample = nn.Upsample(size=out_size, scale_factor=scale)
-        self.relu = nn.LeakyReLU(inplace=False)
-
-        # left
-        self.conv_l1 = nn.Conv2d(in_channel, out_channel, 1)
-
-        # right
-        self.conv_r1 = nn.Conv2d(in_channel, out_channel, conv_size, padding=padding_size)
-        self.conv_r2 = nn.Conv2d(out_channel, out_channel, conv_size, padding=padding_size)
-
-    def forward(self, x):
-        res = x
-
-        # left
-        out_res = self.upsample(res)
-        out_res = self.conv_l1(out_res)
-
-        # right
-        out = self.relu(out)
-        out = self.upsample(out)
-        out = self.conv_r1(out)
-        out = self.relu(out)
-        out = self.conv_r2(out)
-
-        out = out + out_res
 
         return out
 
