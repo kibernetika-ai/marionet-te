@@ -7,15 +7,18 @@ import torch.nn as nn
 class WarpAlignBlock(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(WarpAlignBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channel, out_channel, kernel_size=1, padding=1, bias=False)
-        self.conv2 = nn.Conv2d(in_channel, out_channel, kernel_size=1, padding=1, bias=False)
-        self.res_up = ResidualBlockUp(out_channel, out_channel // 2, norm=nn.InstanceNorm2d)
+        self.conv1 = nn.Conv2d(in_channel, 2, kernel_size=1, padding=0, bias=False)
+        self.conv2 = nn.Conv2d(in_channel * 2, in_channel, kernel_size=1, padding=0, bias=False)
+        self.res_up = ResidualBlockUp(in_channel, out_channel, norm=nn.InstanceNorm2d)
 
     def forward(self, s, u):
-        f_u = self.conv1(u)
-        pose_adapt = nn.functional.grid_sample(s, f_u.permute([0, 2, 3, 1]))
+        f_u = self.conv1(u)  # flow map has 2 channels
+        k = s.shape[0] // u.shape[0]
+        s_mean = s.reshape([k, u.shape[0], s.shape[1], s.shape[2], s.shape[3]]).mean(dim=0)
+        __import__('ipdb').set_trace()
+        pose_adapt = nn.functional.grid_sample(s_mean, f_u.permute([0, 2, 3, 1]))
 
-        out = torch.cat([f_u, pose_adapt])
+        out = torch.cat([u, pose_adapt], dim=-3)
         out = self.conv2(out)
         out = self.res_up(out)
 

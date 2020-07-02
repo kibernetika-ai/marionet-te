@@ -60,23 +60,28 @@ class Blender(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, im_size):
+    def __init__(self, channels=512):
         super(Decoder, self).__init__()
 
-        self.warp1 = blocks.WarpAlignBlock(im_size, im_size // 2)
-        self.warp2 = blocks.WarpAlignBlock(im_size // 2, im_size // 4)
-        self.warp3 = blocks.WarpAlignBlock(im_size // 4, im_size // 8)
-        self.warp4 = blocks.WarpAlignBlock(im_size // 8, im_size // 16)
+        self.warp1 = blocks.WarpAlignBlock(channels, channels // 2)
+        self.warp2 = blocks.WarpAlignBlock(channels // 2, channels // 4)
+        self.warp3 = blocks.WarpAlignBlock(channels // 4, channels // 8)
+        self.warp4 = blocks.WarpAlignBlock(channels // 8, channels // 16)
 
-        self.conv = nn.Conv2d(im_size, im_size, 1, 1)
+        # last conv with 3 channels to get the image
+        self.conv = nn.Conv2d(channels, 3, 1, 1)
 
     def forward(self, z_xy, s1, s2, s3, s4):
-        # 4 warp-alignment blocks
+        # z_xy: [B, 512, 16, 16]
+        # s1: [BxK, 128, 128, 128]
+        # s2: [BxK, 256, 64, 64]
+        # s3: [BxK, 512, 32, 32]
+        # s4: [BxK, 512, 16, 16]
         # TODO: maybe in up-down direction
-        u = self.warp1(s1, z_xy)
-        u = self.warp1(s2, u)
+        u = self.warp1(s4, z_xy)
         u = self.warp1(s3, u)
-        u = self.warp1(s4, u)
+        u = self.warp1(s2, u)
+        u = self.warp1(s1, u)
 
         out = self.conv(u)
         out = torch.tanh(out)
@@ -84,18 +89,17 @@ class Decoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_height):
+    def __init__(self, in_height, emb_dim=512):
         super(Generator, self).__init__()
 
         self.target_encoder = TargetEncoder(in_height)
         self.driver_encoder = DriverEncoder()
         self.blender = Blender()
-        self.decoder = Decoder(in_height)
+        self.decoder = Decoder(emb_dim)
 
     def forward(self, drv_lmark, target_imgs, target_lmarks):
         s1, s2, s3, s4, zy = self.target_encoder(target_imgs, target_lmarks)
         zx = self.driver_encoder(drv_lmark)
-        __import__('ipdb').set_trace()
         z_xy = self.blender(zx, zy)
         result = self.decoder(z_xy, s1, s2, s3, s4)
 

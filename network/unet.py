@@ -21,12 +21,11 @@ class UNet(nn.Module):
         self.avg_pool1 = nn.AvgPool2d(2)
         self.avg_pool2 = nn.AvgPool2d(4)
         self.avg_pool3 = nn.AvgPool2d(8)
-        self.avg_pool3 = nn.AvgPool2d(16)
 
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
+        self.up1 = Up(1024, 512, bilinear)
+        self.up2 = Up(1024, 512 // factor, bilinear)
+        self.up3 = Up(512, 256 // factor, bilinear)
+        self.up4 = Up(256, 128 // factor, bilinear)
         self.outc = OutConv(64, n_classes)
 
     def forward(self, x):
@@ -35,27 +34,26 @@ class UNet(nn.Module):
         s2 = self.down2(s1)
         s3 = self.down3(s2)
         s4 = self.down4(s3)
-        zy = self.down4(s4)
-        x = self.up1(s4, s3)
-        x = self.up2(x, s2)
-        x = self.up3(x, s1)
-        x = self.up4(x, x1)
+        s5 = self.down5(s4)
+        x = self.up1(s5, s4)  # 512 / 512
+        x = self.up2(x, s3)  # 256 / 256
+        x = self.up3(x, s2)  # 128 / 128
+        x = self.up4(x, s1)  # 64 / 64
 
         flow_map = self.outc(x)
         flow_map = torch.tanh(flow_map)
 
-        fy1 = self.avg_pool1(flow_map)
         fy2 = self.avg_pool1(flow_map)
-        fy3 = self.avg_pool1(flow_map)
-        fy4 = self.avg_pool1(flow_map)
+        fy3 = self.avg_pool2(flow_map)
+        fy4 = self.avg_pool3(flow_map)
 
         # Apply warping function
-        s1 = nn.functional.grid_sample(s1, fy1.permute([0, 2, 3, 1]))
+        s1 = nn.functional.grid_sample(s1, flow_map.permute([0, 2, 3, 1]))
         s2 = nn.functional.grid_sample(s2, fy2.permute([0, 2, 3, 1]))
         s3 = nn.functional.grid_sample(s3, fy3.permute([0, 2, 3, 1]))
         s4 = nn.functional.grid_sample(s4, fy4.permute([0, 2, 3, 1]))
 
-        return s1, s2, s3, s4, zy
+        return s1, s2, s3, s4, s5
 
 
 class DoubleConv(nn.Module):
