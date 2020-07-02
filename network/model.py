@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 
@@ -42,27 +44,29 @@ class Blender(nn.Module):
     def __init__(self):
         super(Blender, self).__init__()
 
-        self.att = nn.Transformer()
-        self.att2 = nn.Transformer()
-        self.att3 = nn.Transformer()
+        self.att1 = blocks.ImageAttention(d_model=512, n_channels=64)
+        self.att2 = blocks.ImageAttention(d_model=512, n_channels=64)
+        self.att3 = blocks.ImageAttention(d_model=512, n_channels=64)
 
     def forward(self, zx, zy):
+        # zx: [1, 512, 16, 16]
+        # zy: [B*8, 512, 8, 8]
         # 3 image attention blocks
-        z_xy = self.att(zx, zy)
-        z_xy = self.att2(zx, z_xy)
-        z_xy = self.att3(zx, z_xy)
+        z_xy = self.att1(zx, zy)
+        z_xy = self.att1(z_xy, zy)
+        out = self.att1(z_xy, zy)
 
-        return z_xy
+        return out
 
 
 class Decoder(nn.Module):
     def __init__(self, im_size):
         super(Decoder, self).__init__()
 
-        self.warp1 = blocks.WarpAlignBlock(im_size, im_size)
-        self.warp2 = blocks.WarpAlignBlock(im_size, im_size)
-        self.warp3 = blocks.WarpAlignBlock(im_size, im_size)
-        self.warp4 = blocks.WarpAlignBlock(im_size, im_size)
+        self.warp1 = blocks.WarpAlignBlock(im_size, im_size // 2)
+        self.warp2 = blocks.WarpAlignBlock(im_size // 2, im_size // 4)
+        self.warp3 = blocks.WarpAlignBlock(im_size // 4, im_size // 8)
+        self.warp4 = blocks.WarpAlignBlock(im_size // 8, im_size // 16)
 
         self.conv = nn.Conv2d(im_size, im_size, 1, 1)
 
@@ -91,6 +95,7 @@ class Generator(nn.Module):
     def forward(self, drv_lmark, target_imgs, target_lmarks):
         s1, s2, s3, s4, zy = self.target_encoder(target_imgs, target_lmarks)
         zx = self.driver_encoder(drv_lmark)
+        __import__('ipdb').set_trace()
         z_xy = self.blender(zx, zy)
         result = self.decoder(z_xy, s1, s2, s3, s4)
 

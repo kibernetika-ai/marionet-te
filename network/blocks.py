@@ -22,6 +22,55 @@ class WarpAlignBlock(nn.Module):
         return out
 
 
+class ImageAttention(nn.Module):
+    def __init__(self, d_model=512, n_channels=64):
+        super(ImageAttention, self).__init__()
+        self.n_channels = n_channels
+        self.wq = nn.Linear(d_model, n_channels)
+        self.wk = nn.Linear(d_model, n_channels)
+        self.wv = nn.Linear(d_model, d_model)
+        self.wqp = nn.Linear(d_model, n_channels)
+        self.wkp = nn.Linear(d_model, n_channels)
+        self.norm1 = nn.InstanceNorm2d(d_model)
+        self.norm2 = nn.InstanceNorm2d(d_model)
+        self.conv3x3 = conv3x3(d_model, d_model)
+
+        # TODO positional encoding
+        self.px = torch.randn([1, 16, 16, d_model])
+        self.py = torch.randn([1, 8, 8, d_model])
+        self.softmax = nn.Softmax(dim=-1)
+
+    def attention(self, q, k, v):
+        b_size = q.shape[0]
+        channels = self.n_channels
+        q_flatten = q.reshape([b_size, -1, channels])  # [B, 256, channels]
+        k_flatten = k.reshape([b_size, -1, channels]).permute([0, 2, 1])  # [B, channels, 512]
+        v_flatten = v.reshape([b_size, -1, v.shape[-1]])  # [B, 512, 512]
+
+        out = torch.bmm(q_flatten, k_flatten) / math.sqrt(channels)  # [B, 256, 512]
+        out = self.softmax(out).bmm(v_flatten)  # [B, 256, 512]
+        out = out.reshape([b_size, q.shape[1], q.shape[2], v.shape[-1]])  # [B, 16, 16, 512]
+
+        return out
+
+    def forward(self, zx, zy):
+        # zx: [B, 512, 16, 16]
+        # zy: [BxK, 512, 8, 8]
+        q = self.wq(zx.permute(0, 2, 3, 1)) + self.wqp(self.px)  # [B, 16, 16, 64]
+        k = self.wk(zy.permute(0, 2, 3, 1)) + self.wkp(self.py)  # [BxK, 8, 8, 64]
+        v = self.wv(zy.permute([0, 2, 3, 1]))  # [BxK, 8, 8, 512]
+
+        out = self.attention(q, k, v).permute([0, 3, 1, 2])
+
+        out += zx
+        out_norm = self.norm1(out)
+        out = self.conv3x3(out_norm)
+        out += out_norm
+        out = self.norm2(out)
+
+        return out
+
+
 # 3x3 convolution
 def conv3x3(in_channels, out_channels, stride=1):
     return nn.Conv2d(in_channels, out_channels, kernel_size=3,
@@ -110,25 +159,6 @@ class ResidualDownBlock(ResidualBlock):
         super(ResidualDownBlock, self).__init__(
             in_channels, out_channels, stride=stride, downsample=downsample, norm=norm
         )
-
-
-class ImageAttention(nn.Module):
-    def __init__(self, im_size):
-        super(ImageAttention, self).__init__()
-
-        self.conv3x3 = conv3x3(im_size, im_size)
-        self.inst_norm1 = nn.InstanceNorm2d(im_size, affine=True)
-        self.inst_norm2 = nn.InstanceNorm2d(im_size, affine=True)
-
-    def forward(self, q, k, v):
-        # res = attention
-        # out = res + q
-        # res = instance norm
-        # out = conv3x3
-        # out = out + res
-        # out = instance norm
-        pass
-
 
 class SelfAttention(nn.Module):
     def __init__(self, in_channel):
