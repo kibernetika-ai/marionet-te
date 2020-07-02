@@ -15,7 +15,6 @@ class WarpAlignBlock(nn.Module):
         f_u = self.conv1(u)  # flow map has 2 channels
         k = s.shape[0] // u.shape[0]
         s_mean = s.reshape([k, u.shape[0], s.shape[1], s.shape[2], s.shape[3]]).mean(dim=0)
-        __import__('ipdb').set_trace()
         pose_adapt = nn.functional.grid_sample(s_mean, f_u.permute([0, 2, 3, 1]))
 
         out = torch.cat([u, pose_adapt], dim=-3)

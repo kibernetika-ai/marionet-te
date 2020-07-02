@@ -63,13 +63,13 @@ class Decoder(nn.Module):
     def __init__(self, channels=512):
         super(Decoder, self).__init__()
 
-        self.warp1 = blocks.WarpAlignBlock(channels, channels // 2)
-        self.warp2 = blocks.WarpAlignBlock(channels // 2, channels // 4)
-        self.warp3 = blocks.WarpAlignBlock(channels // 4, channels // 8)
-        self.warp4 = blocks.WarpAlignBlock(channels // 8, channels // 16)
+        self.warp1 = blocks.WarpAlignBlock(channels, channels)
+        self.warp2 = blocks.WarpAlignBlock(channels, channels // 2)
+        self.warp3 = blocks.WarpAlignBlock(channels // 2, channels // 4)
+        self.warp4 = blocks.WarpAlignBlock(channels // 4, channels // 8)
 
         # last conv with 3 channels to get the image
-        self.conv = nn.Conv2d(channels, 3, 1, 1)
+        self.conv = nn.Conv2d(channels // 8, 3, 1, 1)
 
     def forward(self, z_xy, s1, s2, s3, s4):
         # z_xy: [B, 512, 16, 16]
@@ -77,11 +77,10 @@ class Decoder(nn.Module):
         # s2: [BxK, 256, 64, 64]
         # s3: [BxK, 512, 32, 32]
         # s4: [BxK, 512, 16, 16]
-        # TODO: maybe in up-down direction
         u = self.warp1(s4, z_xy)
-        u = self.warp1(s3, u)
-        u = self.warp1(s2, u)
-        u = self.warp1(s1, u)
+        u = self.warp2(s3, u)
+        u = self.warp3(s2, u)
+        u = self.warp4(s1, u)
 
         out = self.conv(u)
         out = torch.tanh(out)
