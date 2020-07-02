@@ -98,8 +98,8 @@ class SNResNetProjectionDiscriminator(nn.Module):
                             activation=activation, downsample=True)
         self.block5 = Block(num_features * 8, num_features * 16,
                             activation=activation, downsample=True)
-        # self.block6 = Block(num_features * 16, num_features * 16,
-        #                     activation=activation, downsample=True)
+        self.block6 = Block(num_features * 16, num_features * 16,
+                            activation=activation, downsample=True)
         self.l7 = utils.spectral_norm(nn.Linear(num_features * 16, 1))
         if num_classes > 0:
             self.l_y = utils.spectral_norm(
@@ -116,12 +116,12 @@ class SNResNetProjectionDiscriminator(nn.Module):
     def forward(self, x, y=None):
         h = x
         outs = []
-        for i in range(1, 7):
+        for i in range(1, 6):
             h = getattr(self, 'block{}'.format(i))(h)
             outs.append(h)
         h = self.activation(h)
         # Global pooling
-        h = torch.sum(h, dim=(2, 3))
+        # h = torch.sum(h, dim=(2, 3))
         output = self.l7(h)
         if y is not None:
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)

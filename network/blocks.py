@@ -7,8 +7,8 @@ import torch.nn as nn
 class WarpAlignBlock(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(WarpAlignBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channel, 2, kernel_size=1, padding=0, bias=False)
-        self.conv2 = nn.Conv2d(in_channel * 2, in_channel, kernel_size=1, padding=0, bias=False)
+        self.conv1 = nn.utils.spectral_norm(nn.Conv2d(in_channel, 2, kernel_size=1, padding=0, bias=False))
+        self.conv2 = nn.utils.spectral_norm(nn.Conv2d(in_channel * 2, in_channel, kernel_size=1, padding=0, bias=False))
         self.res_up = ResidualBlockUp(in_channel, out_channel, norm=nn.InstanceNorm2d)
 
     def forward(self, s, u):
@@ -35,7 +35,7 @@ class ImageAttention(nn.Module):
         self.wkp = nn.Linear(d_model, n_channels)
         self.norm1 = nn.InstanceNorm2d(d_model)
         self.norm2 = nn.InstanceNorm2d(d_model)
-        self.conv3x3 = conv3x3(d_model, d_model)
+        self.conv3x3 = nn.utils.spectral_norm(conv3x3(d_model, d_model))
 
         # TODO positional encoding
         self.px = torch.randn([1, 16, 16, d_model])
@@ -116,7 +116,7 @@ class SinusoidalEncoding(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, downsample=None, norm=nn.BatchNorm2d):
         super(ResidualBlock, self).__init__()
-        self.conv1 = conv3x3(in_channels, out_channels, stride)
+        self.conv1 = nn.utils.spectral_norm(conv3x3(in_channels, out_channels, stride))
         if norm:
             if norm is nn.InstanceNorm2d:
                 self.bn1 = norm(out_channels, affine=True)
@@ -128,7 +128,7 @@ class ResidualBlock(nn.Module):
             self.bn1 = None
             self.bn2 = None
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(out_channels, out_channels)
+        self.conv2 = nn.utils.spectral_norm(conv3x3(out_channels, out_channels))
         self.downsample = downsample
 
     def forward(self, x):
@@ -150,7 +150,7 @@ class ResidualBlock(nn.Module):
 class ResidualDownBlock(ResidualBlock):
     def __init__(self, in_channels, out_channels, stride=2, norm=nn.BatchNorm2d):
         downsample = nn.Sequential(
-            conv3x3(in_channels, out_channels),
+            nn.utils.spectral_norm(conv3x3(in_channels, out_channels)),
             nn.AvgPool2d(2),
         )
         if norm is not None:
@@ -201,7 +201,7 @@ class SelfAttention(nn.Module):
 class ResidualBlockUp(nn.Module):
     def __init__(self, in_channels, out_channels, is_bilinear=True, norm=nn.BatchNorm2d):
         super(ResidualBlockUp, self).__init__()
-        self.conv1 = conv3x3(in_channels, out_channels)
+        self.conv1 = nn.utils.spectral_norm(conv3x3(in_channels, out_channels))
         if norm is not None:
             if norm is nn.InstanceNorm2d:
                 self.bn1 = norm(out_channels, affine=True)
@@ -215,8 +215,8 @@ class ResidualBlockUp(nn.Module):
             self.bn1 = self.bn2 = self.bn3 = None
 
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(in_channels, out_channels)
-        self.conv3 = conv3x3(out_channels, out_channels)
+        self.conv2 = nn.utils.spectral_norm(conv3x3(in_channels, out_channels))
+        self.conv3 = nn.utils.spectral_norm(conv3x3(out_channels, out_channels))
 
         if is_bilinear:
             self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
