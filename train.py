@@ -222,14 +222,14 @@ def main():
                 out = (mark[0] * 255).permute([1, 2, 0])
                 out3 = out.type(torch.int32).to(cpu).numpy()
                 accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
-                ssim = metrics.structural_similarity(out1.astype(np.uint8).clip(0, 255), out2.astype(np.uint8).clip(0, 255), multichannel=True)
+                ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8), out2.clip(0, 255).astype(np.uint8), multichannel=True)
                 print_fun(
                     'Step %d [%d/%d][%d/%d]\tLoss_G: %.4f\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'
                     % (step, epoch, num_epochs, i_batch, len(data_loader),
                        loss_generator.item(), loss_d.item(), accuracy, ssim)
                 )
 
-                image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
+                image = np.hstack((out1, out2, out3)).clip(0, 255).astype(np.uint8)
                 writer.add_image(
                     'Result', image,
                     global_step=step,
