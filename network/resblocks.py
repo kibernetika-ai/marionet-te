@@ -89,7 +89,7 @@ class SNResNetProjectionDiscriminator(nn.Module):
         self.num_classes = num_classes
         self.activation = activation
 
-        self.block1 = OptimizedBlock(3, num_features)
+        self.block1 = OptimizedBlock(6, num_features)
         self.block2 = Block(num_features, num_features * 2,
                             activation=activation, downsample=True)
         self.block3 = Block(num_features * 2, num_features * 4,
@@ -113,8 +113,8 @@ class SNResNetProjectionDiscriminator(nn.Module):
         if optional_l_y is not None:
             init.xavier_uniform_(optional_l_y.weight.data)
 
-    def forward(self, x, y=None):
-        h = x
+    def forward(self, x, y):
+        h = torch.cat([x, y], dim=-3)
         outs = []
         for i in range(1, 6):
             h = getattr(self, 'block{}'.format(i))(h)
@@ -122,7 +122,7 @@ class SNResNetProjectionDiscriminator(nn.Module):
         h = self.activation(h)
         # Global pooling
         # h = torch.sum(h, dim=(2, 3))
-        output = self.l7(h)
-        if y is not None:
-            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
+        output = self.l7(h.permute(0, 2, 3, 1))
+        # if y is not None:
+        #     output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
         return output, outs

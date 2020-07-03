@@ -178,8 +178,8 @@ class LossAdv(nn.Module):
 
     def forward(self, fake, d_real_list, d_fake_list):
         lossFM = 0
-        for real, fake in zip(d_real_list, d_fake_list):
-            lossFM += self.l1_loss(real, fake)
+        for real, f in zip(d_real_list, d_fake_list):
+            lossFM += self.l1_loss(real, f)
 
         return -fake.mean() + lossFM * self.FM_weight
 

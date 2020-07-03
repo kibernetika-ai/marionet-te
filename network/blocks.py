@@ -25,8 +25,9 @@ class WarpAlignBlock(nn.Module):
 
 
 class ImageAttention(nn.Module):
-    def __init__(self, d_model=512, n_channels=64):
+    def __init__(self, d_model=512, n_channels=64, device=None):
         super(ImageAttention, self).__init__()
+        self.device = device if device else torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.n_channels = n_channels
         self.wq = nn.Linear(d_model, n_channels)
         self.wk = nn.Linear(d_model, n_channels)
@@ -38,8 +39,10 @@ class ImageAttention(nn.Module):
         self.conv3x3 = nn.utils.spectral_norm(conv3x3(d_model, d_model))
 
         # TODO positional encoding
-        self.px = torch.randn([1, 16, 16, d_model])
-        self.py = torch.randn([1, 8, 8, d_model])
+        self.px = positionalencoding2d(d_model, 16, 16).permute([1, 2, 0]).unsqueeze(0).requires_grad_(False)
+        self.py = positionalencoding2d(d_model, 8, 8).permute([1, 2, 0]).unsqueeze(0).requires_grad_(False)
+        self.px = self.px.to(device)
+        self.py = self.py.to(device)
         self.softmax = nn.Softmax(dim=-1)
 
     def attention(self, q, k, v):
@@ -161,6 +164,7 @@ class ResidualDownBlock(ResidualBlock):
         super(ResidualDownBlock, self).__init__(
             in_channels, out_channels, stride=stride, downsample=downsample, norm=norm
         )
+
 
 class SelfAttention(nn.Module):
     def __init__(self, in_channel):

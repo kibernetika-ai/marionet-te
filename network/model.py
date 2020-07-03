@@ -41,20 +41,20 @@ class DriverEncoder(nn.Module):
 
 
 class Blender(nn.Module):
-    def __init__(self):
+    def __init__(self, device=None):
         super(Blender, self).__init__()
 
-        self.att1 = blocks.ImageAttention(d_model=512, n_channels=64)
-        self.att2 = blocks.ImageAttention(d_model=512, n_channels=64)
-        self.att3 = blocks.ImageAttention(d_model=512, n_channels=64)
+        self.att1 = blocks.ImageAttention(d_model=512, n_channels=64, device=device)
+        self.att2 = blocks.ImageAttention(d_model=512, n_channels=64, device=device)
+        self.att3 = blocks.ImageAttention(d_model=512, n_channels=64, device=device)
 
     def forward(self, zx, zy):
         # zx: [1, 512, 16, 16]
         # zy: [B*8, 512, 8, 8]
         # 3 image attention blocks
         z_xy = self.att1(zx, zy)
-        z_xy = self.att1(z_xy, zy)
-        out = self.att1(z_xy, zy)
+        z_xy = self.att2(z_xy, zy)
+        out = self.att3(z_xy, zy)
 
         return out
 
@@ -88,13 +88,14 @@ class Decoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_height, emb_dim=512):
+    def __init__(self, in_height, device=torch.device('cuda'), emb_dim=512):
         super(Generator, self).__init__()
 
         self.target_encoder = TargetEncoder(in_height)
         self.driver_encoder = DriverEncoder()
-        self.blender = Blender()
+        self.blender = Blender(device=device)
         self.decoder = Decoder(emb_dim)
+        self.device = device
 
     def forward(self, drv_lmark, target_imgs, target_lmarks):
         s1, s2, s3, s4, zy = self.target_encoder(target_imgs, target_lmarks)

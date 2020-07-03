@@ -76,7 +76,7 @@ def main():
 
     path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
 
-    G = nn.DataParallel(Generator(frame_shape).to(device))
+    G = nn.DataParallel(Generator(frame_shape, device).to(device))
     D = nn.DataParallel(SNResNetProjectionDiscriminator().to(device))
 
     G.train()
@@ -176,19 +176,29 @@ def main():
                 fake = G(img, frames, marks)
 
                 fake_score, d_fake_list = D(fake, mark)
-                with torch.no_grad():
-                    real_score, d_real_list = D(img, mark)
+
+                real_score, d_real_list = D(img, mark)
 
                 loss_generator = loss_g(
-                    img, fake, fake_score, real_score, d_fake_list, d_real_list
+                    img, fake, fake_score, d_fake_list, d_real_list
                 )
-                loss_generator.backward(retain_graph=False)
+                loss_generator.backward(retain_graph=True)
                 optimizerG.step()
 
             with torch.autograd.enable_grad():
                 optimizerG.zero_grad()
                 optimizerD.zero_grad()
-                fake.detach_().requires_grad_()
+                fake_score, d_fake_list = D(fake, mark)
+                loss_fake = loss_d_fake(fake_score)
+
+                real_score, d_real_list = D(img, mark)
+                loss_real = loss_d_real(real_score)
+
+                loss_d = loss_fake + loss_real
+                loss_d.backward(retain_graph=True)
+                optimizerD.step()
+
+                optimizerD.zero_grad()
                 fake_score, d_fake_list = D(fake, mark)
                 loss_fake = loss_d_fake(fake_score)
 
@@ -213,9 +223,9 @@ def main():
                 accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
                 ssim = metrics.structural_similarity(out1.astype(np.uint8).clip(0, 255), out2.astype(np.uint8).clip(0, 255), multichannel=True)
                 print_fun(
-                    'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'
+                    'Step %d [%d/%d][%d/%d]\tLoss_G: %.4f\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'
                     % (step, epoch, num_epochs, i_batch, len(data_loader),
-                       loss_d.item(), accuracy, ssim)
+                       loss_generator.item(), loss_d.item(), accuracy, ssim)
                 )
 
                 image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
@@ -224,7 +234,7 @@ def main():
                     global_step=step,
                     dataformats='HWC'
                 )
-                # writer.add_scalar('loss_g', lossG.item(), global_step=step)
+                writer.add_scalar('loss_g', loss_generator.item(), global_step=step)
                 writer.add_scalar('loss_d', loss_d.item(), global_step=step)
                 writer.add_scalar('match', accuracy, global_step=step)
                 writer.add_scalar('ssim', ssim, global_step=step)
