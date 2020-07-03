@@ -94,15 +94,26 @@ def positionalencoding2d(channels, height, width):
                          "odd dimension (got dim={:d})".format(channels))
     pe = torch.zeros(channels, height, width)
     # Each dimension use half of d_model
-    channels = int(channels / 2)
-    div_term = torch.exp(torch.arange(0., channels, 2) *
-                         -(math.log(10000.0) / channels))
-    pos_w = torch.arange(0., width).unsqueeze(1)
-    pos_h = torch.arange(0., height).unsqueeze(1)
-    pe[0:channels:2, :, :] = torch.sin(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
-    pe[1:channels:2, :, :] = torch.cos(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
-    pe[channels::2, :, :] = torch.sin(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
-    pe[channels + 1::2, :, :] = torch.cos(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+    channels = int(channels // 4)
+
+    # pe1 = torch.arange() * torch.sin(256 * i / (height * math.pow(10000, 2 * k / channels)))
+    for i in range(height):
+        for j in range(width):
+            for k in range(0, channels):
+                pe[4*k, i, j] = math.sin(256 * i / (height * math.pow(10000, 2 * k / channels)))
+                pe[4*k+1, i, j] = math.cos(256 * i / (height * math.pow(10000, 2 * k / channels)))
+                pe[4*k+2, i, j] = math.sin(256 * j / (width * math.pow(10000, 2 * k / channels)))
+                pe[4*k+3, i, j] = math.cos(256 * j / (width * math.pow(10000, 2 * k / channels)))
+
+    # div_term = torch.exp(torch.arange(0., channels, 2) *
+    #                      -(math.log(10000.0) / channels))
+    # pos_w = torch.arange(0., width).unsqueeze(1)
+    # pos_h = torch.arange(0., height).unsqueeze(1)
+    # pe[0:channels:2, :, :] = torch.sin(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
+    # pe[1:channels:2, :, :] = torch.cos(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
+    # pe[channels::2, :, :] = torch.sin(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+    # pe[channels + 1::2, :, :] = torch.cos(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+    # __import__('ipdb').set_trace()
 
     return pe
 
