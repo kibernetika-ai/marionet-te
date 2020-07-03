@@ -182,39 +182,33 @@ def main():
                 loss_generator = loss_g(
                     img, fake, fake_score, d_fake_list, d_real_list
                 )
+                loss_generator.backward(retain_graph=True)
+                optimizerG.step()
+
+            with torch.autograd.enable_grad():
+                optimizerG.zero_grad()
+                optimizerD.zero_grad()
+                # fake.detach_().requires_grad_()
+                fake_score, d_fake_list = D(fake, mark)
                 loss_fake = loss_d_fake(fake_score)
+
+                real_score, d_real_list = D(img, mark)
                 loss_real = loss_d_real(real_score)
 
                 loss_d = loss_fake + loss_real
-                loss_generator.backward(retain_graph=True)
                 loss_d.backward()
-                optimizerG.step()
                 optimizerD.step()
 
-            # with torch.autograd.enable_grad():
-            #     optimizerG.zero_grad()
-            #     optimizerD.zero_grad()
-            #     fake.detach_().requires_grad_()
-            #     fake_score, d_fake_list = D(fake, mark)
-            #     loss_fake = loss_d_fake(fake_score)
-            #
-            #     real_score, d_real_list = D(img, mark)
-            #     loss_real = loss_d_real(real_score)
-            #
-            #     loss_d = loss_fake + loss_real
-            #     loss_d.backward(retain_graph=True)
-            #     optimizerD.step()
-            #
-            #     optimizerD.zero_grad()
-            #     fake_score, d_fake_list = D(fake, mark)
-            #     loss_fake = loss_d_fake(fake_score)
-            #
-            #     real_score, d_real_list = D(img, mark)
-            #     loss_real = loss_d_real(real_score)
-            #
-            #     loss_d = loss_fake + loss_real
-            #     loss_d.backward(retain_graph=False)
-            #     optimizerD.step()
+                # optimizerD.zero_grad()
+                # fake_score, d_fake_list = D(fake, mark)
+                # loss_fake = loss_d_fake(fake_score)
+                #
+                # real_score, d_real_list = D(img, mark)
+                # loss_real = loss_d_real(real_score)
+                #
+                # loss_d = loss_fake + loss_real
+                # loss_d.backward(retain_graph=False)
+                # optimizerD.step()
 
             step = epoch * num_batches + i_batch + prev_step
             # Output training stats
