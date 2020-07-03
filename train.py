@@ -188,7 +188,7 @@ def main():
             with torch.autograd.enable_grad():
                 optimizerG.zero_grad()
                 optimizerD.zero_grad()
-                # fake.detach_().requires_grad_()
+                fake.detach_().requires_grad_()
                 fake_score, d_fake_list = D(fake, mark)
                 loss_fake = loss_d_fake(fake_score)
 
