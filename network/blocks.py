@@ -130,7 +130,7 @@ class ResidualBlock(nn.Module):
         else:
             self.bn1 = None
             self.bn2 = None
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.conv2 = nn.utils.spectral_norm(conv3x3(out_channels, out_channels))
         self.downsample = downsample
 
@@ -218,7 +218,7 @@ class ResidualBlockUp(nn.Module):
         else:
             self.bn1 = self.bn2 = self.bn3 = None
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.conv2 = nn.utils.spectral_norm(conv3x3(in_channels, out_channels))
         self.conv3 = nn.utils.spectral_norm(conv3x3(out_channels, out_channels))
 
