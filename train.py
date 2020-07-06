@@ -213,15 +213,13 @@ def main():
             step = epoch * num_batches + i_batch + prev_step
             # Output training stats
             if step % log_step == 0:
-                out = (fake[0] * 255).permute([1, 2, 0])
-                out1 = out.type(torch.int32).to(cpu).numpy()
+                def get_picture(tensor):
+                    return (tensor[0] * 127.5 + 127.5).permute([1, 2, 0]).type(torch.int32).to(cpu).numpy()
 
-                out = (img[0] * 255).permute([1, 2, 0])
-                out2 = out.type(torch.int32).to(cpu).numpy()
-
-                out = (mark[0] * 255).permute([1, 2, 0])
-                out3 = out.type(torch.int32).to(cpu).numpy()
-                accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
+                out1 = get_picture(fake)
+                out2 = get_picture(img)
+                out3 = get_picture(mark)
+                accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out1.shape)
                 ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8), out2.clip(0, 255).astype(np.uint8), multichannel=True)
                 print_fun(
                     'Step %d [%d/%d][%d/%d]\tLoss_G: %.4f\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'

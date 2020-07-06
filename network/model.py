@@ -83,8 +83,8 @@ class Decoder(nn.Module):
         u = self.warp4(s1, u)
 
         out = self.conv(u)
-        # out = torch.tanh(out)
-        out = torch.sigmoid(out)
+        out = torch.tanh(out)
+        # out = torch.sigmoid(out)
         return out
 
 

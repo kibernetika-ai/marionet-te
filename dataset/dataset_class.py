@@ -101,8 +101,8 @@ class PreprocessDataset(Dataset):
 
         frames = torch.from_numpy(np.array(frames)).type(dtype=torch.float)  # K,224,224,3
         marks = torch.from_numpy(np.array(marks)).type(dtype=torch.float)  # K,224,224,3
-        frames = frames.permute([0, 3, 1, 2]) / 255.  # K,3,224,224
-        marks = marks.permute([0, 3, 1, 2]) / 255.  # K,3,224,224
+        frames = (frames.permute([0, 3, 1, 2]) - 127.5) / 127.5  # K,3,224,224
+        marks = (marks.permute([0, 3, 1, 2]) - 127.5) / 127.5  # K,3,224,224
         # frame_mark = frame_mark.requires_grad_(False)
 
         g_idx = np.random.randint(low=0, high=self.K)
