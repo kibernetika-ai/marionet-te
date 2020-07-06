@@ -41,12 +41,12 @@ class DriverEncoder(nn.Module):
 
 
 class Blender(nn.Module):
-    def __init__(self, device=None):
+    def __init__(self, image_size=256, device=None):
         super(Blender, self).__init__()
 
-        self.att1 = blocks.ImageAttention(d_model=512, n_channels=64, device=device)
-        self.att2 = blocks.ImageAttention(d_model=512, n_channels=64, device=device)
-        self.att3 = blocks.ImageAttention(d_model=512, n_channels=64, device=device)
+        self.att1 = blocks.ImageAttention(d_model=512, n_channels=64, image_size=image_size, device=device)
+        self.att2 = blocks.ImageAttention(d_model=512, n_channels=64, image_size=image_size, device=device)
+        self.att3 = blocks.ImageAttention(d_model=512, n_channels=64, image_size=image_size, device=device)
 
     def forward(self, zx, zy):
         # zx: [1, 512, 16, 16]
@@ -94,7 +94,7 @@ class Generator(nn.Module):
 
         self.target_encoder = TargetEncoder(in_height)
         self.driver_encoder = DriverEncoder()
-        self.blender = Blender(device=device)
+        self.blender = Blender(image_size=in_height, device=device)
         self.decoder = Decoder(emb_dim)
         self.device = device
 

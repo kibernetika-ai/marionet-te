@@ -147,7 +147,7 @@ def main():
     log_epoch = 1
     if num_batches <= 10:
         log_step = 50
-        log_epoch = 100 // num_batches
+        log_epoch = 300 // num_batches
     save_checkpoint = args.save_checkpoint
     print_fun(f"Will log each {log_step} step.")
     print_fun(f"Will save checkpoint each {save_checkpoint} step.")
@@ -173,7 +173,7 @@ def main():
                 optimizerD.zero_grad()
 
                 # train G and D
-                fake = G(img, frames, marks)
+                fake = G(mark, frames, marks)
                 fake_score, d_fake_list = D(fake, mark)
 
                 with torch.no_grad():
