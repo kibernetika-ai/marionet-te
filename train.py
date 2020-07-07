@@ -32,6 +32,8 @@ def parse_args():
     parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
     parser.add_argument('--frame-shape', default=256, type=int)
     parser.add_argument('--workers', default=4, type=int)
+    parser.add_argument('--disc-learn', default=1, type=int)
+    parser.add_argument('--not-bilinear', action='store_true')
     parser.add_argument('--fa-device', default='cuda:0' if torch.cuda.is_available() else 'cpu')
 
     return parser.parse_args()
@@ -75,8 +77,13 @@ def main():
         )
 
     path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
+    if os.path.isfile(path_to_chkpt):
+        checkpoint = torch.load(path_to_chkpt, map_location=cpu)
+        is_bilinear = checkpoint.get('is_bilinear', True)
+    else:
+        is_bilinear = not args.not_bilinear
 
-    G = nn.DataParallel(Generator(frame_shape, device).to(device))
+    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear).to(device))
     D = nn.DataParallel(SNResNetProjectionDiscriminator().to(device))
 
     G.train()
@@ -125,17 +132,18 @@ def main():
             'num_vid': dataset.__len__(),
             'i_batch': i_batch,
             'optimizerG': optimizerG.state_dict(),
-            'optimizerD': optimizerD.state_dict()
+            'optimizerD': optimizerD.state_dict(),
+            'is_bilinear': not args.not_bilinear,
         }, path_to_chkpt)
         print_fun('...Done')
-
-    """Loading from past checkpoint"""
-    checkpoint = torch.load(path_to_chkpt, map_location=cpu)
-    G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
-    D.module.load_state_dict(checkpoint['D_state_dict'])
-    optimizerG.load_state_dict(checkpoint['optimizerG'])
-    optimizerD.load_state_dict(checkpoint['optimizerD'])
-    prev_step = checkpoint['i_batch']
+        prev_step = 0
+    else:
+        """Loading from past checkpoint"""
+        G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
+        D.module.load_state_dict(checkpoint['D_state_dict'])
+        optimizerG.load_state_dict(checkpoint['optimizerG'])
+        optimizerD.load_state_dict(checkpoint['optimizerD'])
+        prev_step = checkpoint['i_batch']
 
     G.train()
     D.train()
@@ -187,17 +195,18 @@ def main():
 
             with torch.autograd.enable_grad():
                 optimizerG.zero_grad()
-                optimizerD.zero_grad()
                 fake.detach_().requires_grad_()
-                fake_score, d_fake_list = D(fake, mark)
-                loss_fake = loss_d_fake(fake_score)
+                for i in range(args.disc_learn):
+                    optimizerD.zero_grad()
+                    fake_score, d_fake_list = D(fake, mark)
+                    loss_fake = loss_d_fake(fake_score)
 
-                real_score, d_real_list = D(img, mark)
-                loss_real = loss_d_real(real_score)
+                    real_score, d_real_list = D(img, mark)
+                    loss_real = loss_d_real(real_score)
 
-                loss_d = loss_fake + loss_real
-                loss_d.backward()
-                optimizerD.step()
+                    loss_d = loss_fake + loss_real
+                    loss_d.backward(retain_graph=i != (args.disc_learn - 1))
+                    optimizerD.step()
 
                 # optimizerD.zero_grad()
                 # fake_score, d_fake_list = D(fake, mark)
@@ -248,7 +257,8 @@ def main():
                     'num_vid': dataset.__len__(),
                     'i_batch': step,
                     'optimizerG': optimizerG.state_dict(),
-                    'optimizerD': optimizerD.state_dict()
+                    'optimizerD': optimizerD.state_dict(),
+                    'is_bilinear': not args.not_bilinear,
                 },
                     path_to_chkpt
                 )
@@ -262,7 +272,8 @@ def main():
                 'num_vid': dataset.__len__(),
                 'i_batch': step,
                 'optimizerG': optimizerG.state_dict(),
-                'optimizerD': optimizerD.state_dict()
+                'optimizerD': optimizerD.state_dict(),
+                'is_bilinear': not args.not_bilinear,
             },
                 path_to_chkpt
             )

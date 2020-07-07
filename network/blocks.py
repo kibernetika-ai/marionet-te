@@ -5,11 +5,11 @@ import torch.nn as nn
 
 
 class WarpAlignBlock(nn.Module):
-    def __init__(self, in_channel, out_channel):
+    def __init__(self, in_channel, out_channel, bilinear=True):
         super(WarpAlignBlock, self).__init__()
         self.conv1 = nn.utils.spectral_norm(nn.Conv2d(in_channel, 2, kernel_size=1, padding=0, bias=False))
         self.conv2 = nn.utils.spectral_norm(nn.Conv2d(in_channel * 2, in_channel, kernel_size=1, padding=0, bias=False))
-        self.res_up = ResidualBlockUp(in_channel, out_channel, norm=nn.InstanceNorm2d)
+        self.res_up = ResidualBlockUp(in_channel, out_channel, norm=nn.InstanceNorm2d, is_bilinear=bilinear)
 
     def forward(self, s, u):
         f_u = self.conv1(u)  # flow map has 2 channels
@@ -236,7 +236,9 @@ class ResidualBlockUp(nn.Module):
         if is_bilinear:
             self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         else:
-            self.upsample = nn.Upsample(scale_factor=2)
+            self.upsample = nn.utils.spectral_norm(
+                nn.ConvTranspose2d(in_channels, in_channels, kernel_size=1, stride=2, output_padding=1)
+            )
 
     def forward(self, x):
         residual = x
