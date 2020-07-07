@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from dataset.dataset_class import PreprocessDataset
 from dataset.dataset_class import VidDataSet
+from dataset.dataset_class import DatasetRepeater
 from dataset.video_extraction_conversion import *
 from loss.loss_discriminator import *
 from loss.loss_generator import *
@@ -56,6 +57,7 @@ def main():
 
     if args.preprocessed:
         dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, frame_shape=frame_shape)
+        dataset = DatasetRepeater(dataset, num_repeats=10)
         data_loader = DataLoader(
             dataset,
             batch_size=batch_size,
@@ -193,10 +195,11 @@ def main():
                 loss_generator.backward(retain_graph=True)
                 optimizerG.step()
 
-            with torch.autograd.enable_grad():
-                optimizerG.zero_grad()
-                fake.detach_().requires_grad_()
-                for i in range(args.disc_learn):
+            step = epoch * num_batches + i_batch + prev_step
+            if step % args.disc_learn == 0:
+                with torch.autograd.enable_grad():
+                    optimizerG.zero_grad()
+                    fake.detach_().requires_grad_()
                     optimizerD.zero_grad()
                     fake_score, d_fake_list = D(fake, mark)
                     loss_fake = loss_d_fake(fake_score)
@@ -205,21 +208,9 @@ def main():
                     loss_real = loss_d_real(real_score)
 
                     loss_d = loss_fake + loss_real
-                    loss_d.backward(retain_graph=i != (args.disc_learn - 1))
+                    loss_d.backward()
                     optimizerD.step()
 
-                # optimizerD.zero_grad()
-                # fake_score, d_fake_list = D(fake, mark)
-                # loss_fake = loss_d_fake(fake_score)
-                #
-                # real_score, d_real_list = D(img, mark)
-                # loss_real = loss_d_real(real_score)
-                #
-                # loss_d = loss_fake + loss_real
-                # loss_d.backward(retain_graph=False)
-                # optimizerD.step()
-
-            step = epoch * num_batches + i_batch + prev_step
             # Output training stats
             if step % log_step == 0:
                 def get_picture(tensor):
