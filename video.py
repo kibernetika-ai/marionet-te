@@ -71,7 +71,11 @@ def main():
         if not ret:
             break
         frames_list = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)]
-        l = video_extraction_conversion.generate_landmarks(frames_list, face_aligner=fa, size=frame_size)
+        try:
+            l = video_extraction_conversion.generate_landmarks(frames_list, face_aligner=fa, size=frame_size)
+        except TypeError:
+            continue
+
         x, g_y = l[0][0], l[0][1]
         x = torch.from_numpy(x.transpose([2, 0, 1])).type(dtype=torch.float)
         g_y = torch.from_numpy(g_y.transpose([2, 0, 1])).type(dtype=torch.float)
@@ -81,7 +85,7 @@ def main():
         g_y = g_y.unsqueeze(0) / 255
         x = x.unsqueeze(0) / 255
 
-        x_hat = model(x, src_imgs, src_lmarks)
+        x_hat = model(g_y, src_imgs, src_lmarks)
 
         out1 = x[0].to(cpu).numpy().transpose([1, 2, 0])
         out2 = g_y[0].to(cpu).numpy().transpose([1, 2, 0])
@@ -109,7 +113,7 @@ def extract_images(path, face_aligner, image_size=256):
 
     if os.path.isfile(path):
         _, ext = os.path.splitext(base)
-        if ext in {'jpg', '.png'}:
+        if ext in {'.jpg', '.png'}:
             # Extract single image.
             img = cv2.imread(path)
             for i in range(k):

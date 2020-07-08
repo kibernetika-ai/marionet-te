@@ -156,7 +156,7 @@ def main():
     num_batches = len(dataset) / args.batch_size
     log_step = int(round(0.005 * num_batches + 20))
     log_epoch = 1
-    if num_batches <= 10:
+    if num_batches <= 100:
         log_step = 50
         log_epoch = 300 // num_batches
     save_checkpoint = args.save_checkpoint
