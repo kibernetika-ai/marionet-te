@@ -79,7 +79,7 @@ class PreprocessDataset(Dataset):
                 continue
 
         # Select K paths
-        random_indices = np.random.randint(0, len(jpg_paths), size=(self.K,))
+        random_indices = np.random.randint(0, len(jpg_paths), size=(self.K + 1,))
         paths = np.array(jpg_paths)[random_indices]
         landmarks = all_landmarks[random_indices]
 
@@ -105,9 +105,10 @@ class PreprocessDataset(Dataset):
         marks = (marks.permute([0, 3, 1, 2]) - 127.5) / 127.5  # K,3,224,224
         # frame_mark = frame_mark.requires_grad_(False)
 
-        g_idx = np.random.randint(low=0, high=self.K)
-        img = frames[g_idx]
-        mark = marks[g_idx]
+        img = frames[-1]
+        mark = marks[-1]
+        frames = frames[:self.K]
+        marks = marks[:self.K]
 
         return frames, marks, img, mark, vid_idx
 
