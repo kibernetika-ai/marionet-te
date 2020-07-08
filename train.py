@@ -58,7 +58,7 @@ def main():
 
     if args.preprocessed:
         dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, frame_shape=frame_shape)
-        dataset = DatasetRepeater(dataset, num_repeats=10)
+        dataset = DatasetRepeater(dataset, num_repeats=10 if len(dataset) < 100 else 2)
         data_loader = DataLoader(
             dataset,
             batch_size=batch_size,
