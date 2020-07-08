@@ -59,10 +59,10 @@ def main():
         )
 
     src_imgs, src_lmarks = extract_images(args.target, fa, image_size=frame_size)
-    src_imgs = torch.from_numpy(np.array(src_imgs)).type(dtype=torch.float).permute([0, 3, 1, 2]) / 255.
-    src_lmarks = torch.from_numpy(np.array(src_lmarks)).type(dtype=torch.float).permute([0, 3, 1, 2]) / 255.
-    src_imgs = src_imgs.to(device)
-    src_lmarks = src_lmarks.to(device)
+    src_imgs = torch.from_numpy(np.array(src_imgs)).type(dtype=torch.float).permute([0, 3, 1, 2])
+    src_lmarks = torch.from_numpy(np.array(src_lmarks)).type(dtype=torch.float).permute([0, 3, 1, 2])
+    src_imgs = (src_imgs.to(device) - 127.5) / 127.5
+    src_lmarks = (src_lmarks.to(device) - 127.5) / 127.5
 
     print('PRESS Q TO EXIT')
 
@@ -82,14 +82,19 @@ def main():
         if use_cuda:
             x, g_y = x.cuda(), g_y.cuda()
 
-        g_y = g_y.unsqueeze(0) / 255
-        x = x.unsqueeze(0) / 255
+        g_y = (g_y.unsqueeze(0) - 127.5) / 127.5
+        x = (x.unsqueeze(0) - 127.5) / 127.5
 
         x_hat = model(g_y, src_imgs, src_lmarks)
 
-        out1 = x[0].to(cpu).numpy().transpose([1, 2, 0])
-        out2 = g_y[0].to(cpu).numpy().transpose([1, 2, 0])
-        out3 = x_hat[0].to(cpu).numpy().transpose([1, 2, 0])
+        def denorm(img):
+            img = img[0].to(cpu).numpy().transpose([1, 2, 0])
+            img = (img * 127.5 + 127.5).clip(0, 255).astype(np.uint8)
+            return img
+
+        out1 = denorm(x)
+        out2 = denorm(g_y)
+        out3 = denorm(x_hat)
 
         result = cv2.cvtColor(np.hstack((out1, out2, out3)), cv2.COLOR_BGR2RGB)
         cv2.imshow('Result', result)
@@ -116,6 +121,7 @@ def extract_images(path, face_aligner, image_size=256):
         if ext in {'.jpg', '.png'}:
             # Extract single image.
             img = cv2.imread(path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             for i in range(k):
                 images.append(img.copy())
 
@@ -129,6 +135,7 @@ def extract_images(path, face_aligner, image_size=256):
                 ret, img = vc.read()
                 if not ret:
                     raise RuntimeError('Can not read a frame from video.')
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 images.append(img)
     else:
         # Extract K random frames from directory.
@@ -136,6 +143,7 @@ def extract_images(path, face_aligner, image_size=256):
         random_paths = np.random.choice(jpg_paths, size=k)
         for img_path in random_paths:
             img = cv2.imread(img_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             images.append(img)
 
     images_lmarks = video_extraction_conversion.generate_landmarks(images, face_aligner, size=image_size)
