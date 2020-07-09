@@ -8,46 +8,52 @@ class Disentangler(nn.Module):
         super(Disentangler, self).__init__()
 
         self.resnet50 = models.resnet50(pretrained=True, progress=False, num_classes=1000)
-        self.fc1 = nn.Linear(64, 48)
-        self.fc2 = nn.Linear(64, 48)
+        self.fc1 = nn.Linear(2949256, 2048)
+        self.fc2 = nn.Linear(2048, 48)
         self.relu = nn.ReLU()
-
-        self.conv_idx_list = [3, 8, 13, 22, 31]  # idxes of conv layers in resnet50 cf.paper
 
     def extract_features(self, img):
         # define hook
-        def vgg_x_hook(module, input, output):
+        def resnet_hook(module, input, output):
             output.detach_()  # no gradient compute
             resnet_features.append(output)
 
         resnet_features = []
-        vgg_x_handles = []
-
-        conv_idx_iter = 0
+        resnet_handlers = []
 
         # place hooks
-        for i, m in enumerate(self.VGG19.features.modules()):
-            if i == self.conv_idx_list[conv_idx_iter]:
-                if conv_idx_iter < len(self.conv_idx_list) - 1:
-                    conv_idx_iter += 1
-                vgg_x_handles.append(m.register_forward_hook(vgg_x_hook))
+        i = 1
+        while hasattr(self.resnet50, f'layer{i}'):
+            m = getattr(self.resnet50, f'layer{i}')[-1].relu
+            resnet_handlers.append(m.register_forward_hook(resnet_hook))
+            i += 1
 
         # run model for x
         with torch.no_grad():
             self.resnet50(img)
 
         # retrieve features for x
-        for h in vgg_x_handles:
+        for h in resnet_handlers:
             h.remove()
 
         return resnet_features
 
-    def forward(self, img, mean_landmark):
-        features = self.extract_features(img)
+    def forward(self, img, norm_landmark):
+        features_raw = self.extract_features(img)
 
-        # concat with mean landmark ??
+        num = features_raw[0].shape[1] * features_raw[0].shape[2] * features_raw[0].shape[3]
+        features = features_raw[0].reshape([-1, num])
+        for i in range(1, len(features_raw)):
+            num = features_raw[i].shape[1] * features_raw[i].shape[2] * features_raw[i].shape[3]
+            new_feature = features_raw[i].reshape([-1, num])
+            features = torch.cat([features, new_feature], dim=1)
 
-        # out = self.fc1()
-        # out = self.fc2(out)
-        # out = self.relu(out)
-        # return out
+        # concat with norm landmark ??
+        out = torch.cat([
+            features, norm_landmark.reshape([-1, norm_landmark.shape[1] * norm_landmark.shape[2]])
+        ], dim=1)
+
+        out = self.fc1(out)
+        out = self.fc2(out)
+        out = self.relu(out)
+        return out
