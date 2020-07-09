@@ -217,9 +217,25 @@ def main():
                 def get_picture(tensor):
                     return (tensor[0] * 127.5 + 127.5).permute([1, 2, 0]).type(torch.int32).to(cpu).numpy()
 
+                def make_grid(tensor):
+                    np_image = (tensor * 127.5 + 127.5).permute([0, 2, 3, 1]).type(torch.int32).to(cpu).numpy()
+                    np_image = np_image.clip(0, 255).astype(np.uint8)
+                    canvas = np.zeros([frame_shape, frame_shape, 3])
+                    size = math.ceil(math.sqrt(tensor.shape[0]))
+                    im_size = frame_shape // size
+                    for i, im in enumerate(np_image):
+                        col = i % size
+                        row = i // size
+                        im = cv2.resize(im, (im_size, im_size))
+                        canvas[row * im_size:(row+1) * im_size, col*im_size:(col+1) * im_size] = im
+
+                    return canvas
+
                 out1 = get_picture(fake)
                 out2 = get_picture(img)
                 out3 = get_picture(mark)
+                out4 = make_grid(frames)
+
                 accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out1.shape)
                 ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8), out2.clip(0, 255).astype(np.uint8), multichannel=True)
                 print_fun(
@@ -228,7 +244,7 @@ def main():
                        loss_generator.item(), loss_d.item(), accuracy, ssim)
                 )
 
-                image = np.hstack((out1, out2, out3)).clip(0, 255).astype(np.uint8)
+                image = np.hstack((out1, out2, out3, out4)).clip(0, 255).astype(np.uint8)
                 writer.add_image(
                     'Result', image,
                     global_step=step,
