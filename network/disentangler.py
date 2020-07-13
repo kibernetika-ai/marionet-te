@@ -8,8 +8,8 @@ class Disentangler(nn.Module):
         super(Disentangler, self).__init__()
 
         self.resnet50 = models.resnet50(pretrained=True, progress=False, num_classes=1000)
-        self.fc1 = nn.Linear(2949256, 2048)
-        self.fc2 = nn.Linear(2048, 48)
+        self.fc1 = nn.Linear(2048 * 8 * 8, 512)
+        self.fc2 = nn.Linear(512, 48)
         self.relu = nn.ReLU()
 
     def extract_features(self, img):
@@ -22,9 +22,9 @@ class Disentangler(nn.Module):
         resnet_handlers = []
 
         # place hooks
-        i = 1
+        i = 4
         while hasattr(self.resnet50, f'layer{i}'):
-            m = getattr(self.resnet50, f'layer{i}')[-1].relu
+            m = getattr(self.resnet50, f'layer{i}')[-1].bn3
             resnet_handlers.append(m.register_forward_hook(resnet_hook))
             i += 1
 

@@ -11,10 +11,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from dataset.dataset_class import PreprocessDataset
+from dataset.dataset_class import LandmarkDataset
 from dataset.dataset_class import DatasetRepeater
 from dataset.video_extraction_conversion import *
-from loss.loss_discriminator import *
 from loss.loss_generator import *
 from network import disentangler
 from network.resblocks import *
@@ -22,12 +21,10 @@ from network.resblocks import *
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-k', default=8, type=int)
     parser.add_argument('--batch-size', default=1, type=int)
     parser.add_argument('--epochs', default=10, type=int)
     parser.add_argument('--save-checkpoint', type=int, default=1000)
     parser.add_argument('--train-dir', default='train')
-    parser.add_argument('--vggface-dir', default='.')
     parser.add_argument('--data-dir')
     parser.add_argument('--frame-shape', default=256, type=int)
     parser.add_argument('--workers', default=4, type=int)
@@ -43,15 +40,13 @@ def print_fun(s):
 def main():
     args = parse_args()
     """Create dataset and net"""
-    matplotlib.use('agg')
     cpu = torch.device("cpu")
     device = torch.device("cuda") if torch.cuda.is_available() else cpu
     batch_size = args.batch_size
     frame_shape = args.frame_shape
-    K = args.k
 
-    dataset = PreprocessDataset(K=K, path_to_preprocess=args.data_dir, frame_shape=frame_shape)
-    dataset = DatasetRepeater(dataset, num_repeats=10 if len(dataset) < 100 else 2)
+    dataset = LandmarkDataset(root_dir=args.data_dir, frame_shape=frame_shape)
+    dataset = DatasetRepeater(dataset, num_repeats=100 if len(dataset) < 100 else 20)
     data_loader = DataLoader(
         dataset,
         batch_size=batch_size,
