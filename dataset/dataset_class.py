@@ -1,11 +1,11 @@
 import glob
-import time
 
 import torch
 from torch.utils.data import Dataset
 import face_alignment
 
 from .video_extraction_conversion import *
+from utils import utils
 
 
 class VidDataSet(Dataset):
@@ -53,6 +53,7 @@ class PreprocessDataset(Dataset):
         self.frame_shape = frame_shape
 
         self.video_dirs = glob.glob(os.path.join(path_to_preprocess, '*/*'))
+        self.mean_landmark = None
 
     def __len__(self):
         return len(self.video_dirs)
@@ -111,6 +112,33 @@ class PreprocessDataset(Dataset):
         marks = marks[:self.K]
 
         return frames, marks, img, mark, vid_idx
+
+    def set_mean_landmark(self, mean_landmark):
+        self.mean_landmark = mean_landmark
+
+    def get_mean_landmark(self):
+        if self.mean_landmark is not None:
+            return self.mean_landmark
+
+        utils.print_fun('Computing mean landmark...')
+
+        all_landmarks = None
+        for vid_dir in self.video_dirs:
+            lm_path = os.path.join(vid_dir, 'landmarks.npy')
+            if os.path.exists(lm_path):
+                landmarks = np.load(lm_path)
+            else:
+                continue
+
+            if all_landmarks is None:
+                all_landmarks = landmarks
+            else:
+                all_landmarks = np.concatenate((all_landmarks, landmarks))
+
+        self.mean_landmark = all_landmarks.mean(axis=0)
+
+        utils.print_fun('Done computing mean landmark.')
+        return self.mean_landmark
 
 
 class DatasetRepeater(Dataset):
