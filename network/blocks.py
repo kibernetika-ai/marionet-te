@@ -220,42 +220,30 @@ class ResidualBlockUp(nn.Module):
         if norm is not None:
             if norm is nn.InstanceNorm2d:
                 self.bn1 = norm(out_channels, affine=True)
-                self.bn2 = norm(out_channels, affine=True)
-                self.bn3 = norm(out_channels, affine=True)
             else:
                 self.bn1 = norm(out_channels)
-                self.bn2 = norm(out_channels)
-                self.bn3 = norm(out_channels)
         else:
-            self.bn1 = self.bn2 = self.bn3 = None
+            self.bn1 = None
 
         self.relu = nn.ReLU()
-        self.conv2 = nn.utils.spectral_norm(conv3x3(in_channels, out_channels))
-        self.conv3 = nn.utils.spectral_norm(conv3x3(out_channels, out_channels))
+        self.res1 = ResidualBlock(out_channels, out_channels, norm=norm)
+        self.res2 = ResidualBlock(out_channels, out_channels, norm=norm)
 
         if is_bilinear:
-            self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
         else:
             self.upsample = nn.utils.spectral_norm(
                 nn.ConvTranspose2d(in_channels, in_channels, kernel_size=1, stride=2, output_padding=1)
             )
 
     def forward(self, x):
-        residual = x
-        # left
+
         out_res = self.upsample(x)
         out_res = self.conv1(out_res)
         out_res = self.bn1(out_res)
 
-        # right
-        out = self.upsample(residual)
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-        out = self.conv3(out)
-        out = self.bn3(out)
-
-        out = out + out_res
+        out = self.res1(out_res)
+        out = self.res2(out)
         out = self.relu(out)
 
         return out
