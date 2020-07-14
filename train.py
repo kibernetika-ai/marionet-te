@@ -144,8 +144,11 @@ def main():
         """Loading from past checkpoint"""
         G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
         D.module.load_state_dict(checkpoint['D_state_dict'])
-        optimizerG.load_state_dict(checkpoint['optimizerG'])
-        optimizerD.load_state_dict(checkpoint['optimizerD'])
+        try:
+            optimizerG.load_state_dict(checkpoint['optimizerG'])
+            optimizerD.load_state_dict(checkpoint['optimizerD'])
+        except ValueError:
+            pass
         prev_step = checkpoint['i_batch']
 
     G.train()
