@@ -170,7 +170,6 @@ def main():
         #     pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
         #     continue
         # Reset random generator
-        np.random.seed(int(time.time()))
         for i_batch, (frames, marks, img, mark, i) in enumerate(data_loader):
 
             frames = frames.to(device).reshape([-1, *list(frames.shape[2:])])
