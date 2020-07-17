@@ -92,8 +92,8 @@ def generate_landmarks(frames_list, face_aligner, size=256):
         # crop frame
         maxx, maxy = np.max(preds, axis=0)
         minx, miny = np.min(preds, axis=0)
-        margin = 0.4
-        margin_top = margin + 0.3
+        margin = 0.3
+        margin_top = margin
         miny = max(int(miny - (maxy - miny) * margin_top), 0)
         maxy = min(int(maxy + (maxy - miny) * margin), input.shape[0])
         minx = max(int(minx - (maxx - minx) * margin), 0)
