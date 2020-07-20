@@ -84,10 +84,12 @@ def main():
     if os.path.isfile(path_to_chkpt):
         checkpoint = torch.load(path_to_chkpt, map_location=cpu)
         is_bilinear = checkpoint.get('is_bilinear', True)
+        another_resup = checkpoint.get('another_resup', False)
     else:
         is_bilinear = not args.not_bilinear
+        another_resup = args.another_resup
 
-    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear, another_resup=args.another_resup).to(device))
+    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear, another_resup=another_resup).to(device))
     D = nn.DataParallel(SNResNetProjectionDiscriminator().to(device))
 
     G.train()
@@ -138,6 +140,7 @@ def main():
             'optimizerG': optimizerG.state_dict(),
             'optimizerD': optimizerD.state_dict(),
             'is_bilinear': not args.not_bilinear,
+            'another_resup': args.another_resup,
         }, path_to_chkpt)
         print_fun('...Done')
         prev_step = 0
@@ -270,6 +273,7 @@ def main():
                     'optimizerG': optimizerG.state_dict(),
                     'optimizerD': optimizerD.state_dict(),
                     'is_bilinear': not args.not_bilinear,
+                    'another_resup': args.another_resup,
                 },
                     path_to_chkpt
                 )
@@ -285,6 +289,7 @@ def main():
                 'optimizerG': optimizerG.state_dict(),
                 'optimizerD': optimizerD.state_dict(),
                 'is_bilinear': not args.not_bilinear,
+                'another_resup': args.another_resup,
             },
                 path_to_chkpt
             )

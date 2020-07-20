@@ -36,7 +36,12 @@ def main():
 
     checkpoint = torch.load(args.model, map_location=cpu)
 
-    model = Generator(frame_size)
+    model = Generator(
+        frame_size,
+        device=device,
+        bilinear=checkpoint.get('is_bilinear'),
+        another_resup=checkpoint.get('another_resup')
+    )
     model.eval()
 
     """Training Init"""
