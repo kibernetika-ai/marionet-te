@@ -60,13 +60,13 @@ class Blender(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, channels=512, bilinear=True):
+    def __init__(self, channels=512, bilinear=True, another_resup=False):
         super(Decoder, self).__init__()
 
-        self.warp1 = blocks.WarpAlignBlock(channels, channels, bilinear=bilinear)
-        self.warp2 = blocks.WarpAlignBlock(channels, channels // 2, bilinear=bilinear)
-        self.warp3 = blocks.WarpAlignBlock(channels // 2, channels // 4, bilinear=bilinear)
-        self.warp4 = blocks.WarpAlignBlock(channels // 4, channels // 8, bilinear=bilinear)
+        self.warp1 = blocks.WarpAlignBlock(channels, channels, bilinear=bilinear, another_resup=another_resup)
+        self.warp2 = blocks.WarpAlignBlock(channels, channels // 2, bilinear=bilinear, another_resup=another_resup)
+        self.warp3 = blocks.WarpAlignBlock(channels // 2, channels // 4, bilinear=bilinear, another_resup=another_resup)
+        self.warp4 = blocks.WarpAlignBlock(channels // 4, channels // 8, bilinear=bilinear, another_resup=another_resup)
 
         # last conv with 3 channels to get the image
         self.conv = nn.Conv2d(channels // 8, 3, 1, 1)
@@ -89,13 +89,13 @@ class Decoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_height, device=torch.device('cuda'), emb_dim=512, bilinear=True):
+    def __init__(self, in_height, device=torch.device('cuda'), emb_dim=512, bilinear=True, another_resup=False):
         super(Generator, self).__init__()
 
         self.target_encoder = TargetEncoder(in_height, bilinear=bilinear)
         self.driver_encoder = DriverEncoder()
         self.blender = Blender(image_size=in_height, device=device)
-        self.decoder = Decoder(emb_dim, bilinear=bilinear)
+        self.decoder = Decoder(emb_dim, bilinear=bilinear, another_resup=another_resup)
         self.device = device
 
     def forward(self, drv_lmark, target_imgs, target_lmarks):

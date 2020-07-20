@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument('--workers', default=4, type=int)
     parser.add_argument('--disc-learn', default=1, type=int)
     parser.add_argument('--not-bilinear', action='store_true')
+    parser.add_argument('--another-resup', action='store_true')
     parser.add_argument('--fa-device', default='cuda:0' if torch.cuda.is_available() else 'cpu')
 
     return parser.parse_args()
@@ -86,7 +87,7 @@ def main():
     else:
         is_bilinear = not args.not_bilinear
 
-    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear).to(device))
+    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear, another_resup=args.another_resup).to(device))
     D = nn.DataParallel(SNResNetProjectionDiscriminator().to(device))
 
     G.train()
