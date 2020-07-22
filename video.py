@@ -36,7 +36,12 @@ def main():
 
     checkpoint = torch.load(args.model, map_location=cpu)
 
-    model = Generator(frame_size)
+    model = Generator(
+        frame_size,
+        device=device,
+        bilinear=checkpoint.get('is_bilinear'),
+        another_resup=checkpoint.get('another_resup')
+    )
     model.eval()
 
     """Training Init"""
@@ -58,7 +63,7 @@ def main():
             frameSize=(frame_size * 3, frame_size)
         )
 
-    src_imgs, src_lmarks = extract_images(args.target, fa, image_size=frame_size)
+    src_imgs, src_lmarks, av_margin = extract_images(args.target, fa, image_size=frame_size)
     src_imgs = torch.from_numpy(np.array(src_imgs)).type(dtype=torch.float).permute([0, 3, 1, 2])
     src_lmarks = torch.from_numpy(np.array(src_lmarks)).type(dtype=torch.float).permute([0, 3, 1, 2])
     src_imgs = (src_imgs.to(device) - 127.5) / 127.5
@@ -72,7 +77,9 @@ def main():
             break
         frames_list = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)]
         try:
-            l = video_extraction_conversion.generate_landmarks(frames_list, face_aligner=fa, size=frame_size)
+            l, _ = video_extraction_conversion.generate_landmarks(
+                frames_list, face_aligner=fa, size=frame_size, margins=av_margin
+            )
         except TypeError:
             continue
 
@@ -146,9 +153,12 @@ def extract_images(path, face_aligner, image_size=256):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             images.append(img)
 
-    images_lmarks = video_extraction_conversion.generate_landmarks(images, face_aligner, size=image_size)
+    images_lmarks, av_margin = video_extraction_conversion.generate_landmarks(
+        images, face_aligner, size=image_size, crop=False
+    )
+    imgs, lmarks = zip(*images_lmarks)
 
-    return zip(*images_lmarks)
+    return imgs, lmarks, av_margin
 
 
 if __name__ == '__main__':

@@ -116,10 +116,11 @@ def norm_landmarks(landmarks,in_size=(450,450), size=256):
 
     return frame_landmark_list
 
-def generate_landmarks(frames_list, face_aligner, size=256):
+def generate_landmarks(frames_list, face_aligner, size=256, crop=True, margins=None):
     frame_landmark_list = []
     fa = face_aligner
 
+    all_preds = []
     for i in range(len(frames_list)):
         # try:
         input = frames_list[i]
@@ -128,20 +129,26 @@ def generate_landmarks(frames_list, face_aligner, size=256):
         # crop frame
         maxx, maxy = np.max(preds, axis=0)
         minx, miny = np.min(preds, axis=0)
-        margin = 0.4
-        margin_top = margin + 0.3
-        miny = max(int(miny - (maxy - miny) * margin_top), 0)
-        maxy = min(int(maxy + (maxy - miny) * margin), input.shape[0])
-        minx = max(int(minx - (maxx - minx) * margin), 0)
-        maxx = min(int(maxx + (maxx - minx) * margin), input.shape[1])
-        input = input[miny:maxy, minx:maxx]
-        preds -= [minx, miny]
+        if crop:
+            if not margins:
+                margin_left = margin_right = margin_bottom = 0.4
+                margin_top = margin_left + 0.3
+            else:
+                margin_top, margin_bottom, margin_left, margin_right = margins
+
+            miny = max(int(miny - (maxy - miny) * margin_top), 0)
+            maxy = min(int(maxy + (maxy - miny) * margin_bottom), input.shape[0])
+            minx = max(int(minx - (maxx - minx) * margin_left), 0)
+            maxx = min(int(maxx + (maxx - minx) * margin_right), input.shape[1])
+            input = input[miny:maxy, minx:maxx]
+            preds -= [minx, miny]
 
         if input.shape[:2] != (size, size):
             x_factor, y_factor = input.shape[1] / size, input.shape[0] / size
             input = cv2.resize(input, (size, size), interpolation=cv2.INTER_AREA)
             preds /= [x_factor, y_factor]
 
+        all_preds.append(preds)
         data = draw_landmark(preds, size=input.shape)
 
         # if resize:
@@ -153,7 +160,12 @@ def generate_landmarks(frames_list, face_aligner, size=256):
         # filling frame_landmark_list in case of error
         frame_landmark_list.append(frame_landmark_list[i])
 
-    return frame_landmark_list
+    av_lmark = np.stack(all_preds).mean(axis=0)
+    maxx, maxy = np.max(av_lmark, axis=0)
+    minx, miny = np.min(av_lmark, axis=0)
+    # av_margin = [miny / size + 0.3, 1 - maxy / size, minx / size, 1 - maxx / size]
+    av_margin = [0.7, 0.4, 0.4, 0.4]
+    return frame_landmark_list, av_margin
 
 
 def select_images_frames(path_to_images):

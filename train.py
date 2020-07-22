@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument('--workers', default=4, type=int)
     parser.add_argument('--disc-learn', default=1, type=int)
     parser.add_argument('--not-bilinear', action='store_true')
+    parser.add_argument('--another-resup', action='store_true')
     parser.add_argument('--fa-device', default='cuda:0' if torch.cuda.is_available() else 'cpu')
 
     return parser.parse_args()
@@ -83,10 +84,12 @@ def main():
     if os.path.isfile(path_to_chkpt):
         checkpoint = torch.load(path_to_chkpt, map_location=cpu)
         is_bilinear = checkpoint.get('is_bilinear', True)
+        another_resup = checkpoint.get('another_resup', False)
     else:
         is_bilinear = not args.not_bilinear
+        another_resup = args.another_resup
 
-    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear).to(device))
+    G = nn.DataParallel(Generator(frame_shape, device, bilinear=is_bilinear, another_resup=another_resup).to(device))
     D = nn.DataParallel(SNResNetProjectionDiscriminator().to(device))
 
     G.train()
@@ -137,6 +140,7 @@ def main():
             'optimizerG': optimizerG.state_dict(),
             'optimizerD': optimizerD.state_dict(),
             'is_bilinear': not args.not_bilinear,
+            'another_resup': args.another_resup,
         }, path_to_chkpt)
         print_fun('...Done')
         prev_step = 0
@@ -144,8 +148,11 @@ def main():
         """Loading from past checkpoint"""
         G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
         D.module.load_state_dict(checkpoint['D_state_dict'])
-        optimizerG.load_state_dict(checkpoint['optimizerG'])
-        optimizerD.load_state_dict(checkpoint['optimizerD'])
+        try:
+            optimizerG.load_state_dict(checkpoint['optimizerG'])
+            optimizerD.load_state_dict(checkpoint['optimizerD'])
+        except ValueError:
+            pass
         prev_step = checkpoint['i_batch']
 
     G.train()
@@ -170,7 +177,6 @@ def main():
         #     pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
         #     continue
         # Reset random generator
-        np.random.seed(int(time.time()))
         for i_batch, (frames, marks, img, mark, i) in enumerate(data_loader):
 
             frames = frames.to(device).reshape([-1, *list(frames.shape[2:])])
@@ -267,6 +273,7 @@ def main():
                     'optimizerG': optimizerG.state_dict(),
                     'optimizerD': optimizerD.state_dict(),
                     'is_bilinear': not args.not_bilinear,
+                    'another_resup': args.another_resup,
                 },
                     path_to_chkpt
                 )
@@ -282,6 +289,7 @@ def main():
                 'optimizerG': optimizerG.state_dict(),
                 'optimizerD': optimizerD.state_dict(),
                 'is_bilinear': not args.not_bilinear,
+                'another_resup': args.another_resup,
             },
                 path_to_chkpt
             )

@@ -35,7 +35,12 @@ def main():
 
     checkpoint = torch.load(args.model, map_location=cpu)
 
-    model = Generator(frame_size, device=device)
+    model = Generator(
+        frame_size,
+        device=device,
+        bilinear=checkpoint.get('is_bilinear'),
+        another_resup=checkpoint.get('another_resup')
+    )
     model.eval()
 
     """Training Init"""
@@ -47,7 +52,11 @@ def main():
     fa = face_alignment.FaceAlignment(
         face_alignment.LandmarksType._2D, flip_input=False, device=device.type
     )
-    cropped_landmark = video_extraction_conversion.generate_landmarks([img], fa, size=args.frame_size)
+    cropped_landmark, _ = video_extraction_conversion.generate_landmarks(
+        [img], fa,
+        size=args.frame_size,
+        crop=False
+    )
     cropped, landmark = cropped_landmark[0]
 
     src_imgs = np.expand_dims(cropped, axis=0)
@@ -73,48 +82,6 @@ def main():
     result = cv2.cvtColor(np.hstack((out1, out2, out3)), cv2.COLOR_BGR2RGB)
     cv2.imshow('Result', result)
     cv2.waitKey(0)
-
-
-def extract_images(path, face_aligner, image_size=256):
-    base = os.path.basename(path)
-    images = []
-    k = 8
-    if not os.path.exists(path):
-        raise RuntimeError(f'No such file or directory: {path}')
-
-    if os.path.isfile(path):
-        _, ext = os.path.splitext(base)
-        if ext in {'.jpg', '.png'}:
-            # Extract single image.
-            img = cv2.imread(path)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            for i in range(k):
-                images.append(img.copy())
-
-        elif ext in {'.mov', 'avi', 'mp4'}:
-            # Extract K random frames from video.
-            vc = cv2.VideoCapture(path)
-            frames = vc.get(cv2.CAP_PROP_FRAME_COUNT)
-            frame_indices = np.sort((np.random.randint(0, frames, size=k)))
-            for idx in frame_indices:
-                vc.set(cv2.CAP_PROP_POS_FRAMES, idx)
-                ret, img = vc.read()
-                if not ret:
-                    raise RuntimeError('Can not read a frame from video.')
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                images.append(img)
-    else:
-        # Extract K random frames from directory.
-        jpg_paths = sorted(glob.glob(os.path.join(path, '*.jpg')))
-        random_paths = np.random.choice(jpg_paths, size=k)
-        for img_path in random_paths:
-            img = cv2.imread(img_path)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            images.append(img)
-
-    images_lmarks = video_extraction_conversion.generate_landmarks(images, face_aligner, size=image_size)
-
-    return zip(*images_lmarks)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import glob
+import time
 
 import torch
 from torch.utils.data import Dataset
@@ -139,6 +140,8 @@ class PreprocessDataset(Dataset):
         return len(self.video_dirs)
 
     def __getitem__(self, idx):
+        np.random.seed(int(time.time()))
+
         vid_idx = idx
         video_dir = self.video_dirs[vid_idx]
         lm_path = os.path.join(video_dir, 'landmarks.npy')
