@@ -52,7 +52,11 @@ def main():
     fa = face_alignment.FaceAlignment(
         face_alignment.LandmarksType._2D, flip_input=False, device=device.type
     )
-    cropped_landmark = video_extraction_conversion.generate_landmarks([img], fa, size=args.frame_size)
+    cropped_landmark, _ = video_extraction_conversion.generate_landmarks(
+        [img], fa,
+        size=args.frame_size,
+        crop=False
+    )
     cropped, landmark = cropped_landmark[0]
 
     src_imgs = np.expand_dims(cropped, axis=0)
