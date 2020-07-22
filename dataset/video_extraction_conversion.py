@@ -79,6 +79,42 @@ def draw_landmark(landmark, canvas=None, size=None):
 
     return canvas
 
+def norm_landmarks(landmarks,in_size=(450,450), size=256):
+    frame_landmark_list = []
+
+
+    for i in range(len(landmarks)):
+        # try:
+        preds = landmarks[i]
+
+        # crop frame
+        maxx, maxy = np.max(preds, axis=0)
+        minx, miny = np.min(preds, axis=0)
+        margin = 0.4
+        margin_top = margin + 0.3
+        miny = max(int(miny - (maxy - miny) * margin_top), 0)
+        maxy = min(int(maxy + (maxy - miny) * margin), in_size[0])
+        minx = max(int(minx - (maxx - minx) * margin), 0)
+        maxx = min(int(maxx + (maxx - minx) * margin), in_size[1])
+
+        preds -= [minx, miny]
+
+        if in_size != (size, size):
+            x_factor, y_factor = in_size[1] / size, in_size[0] / size
+            preds /= [x_factor, y_factor]
+
+        data = draw_landmark(preds, size=(size,size,3))
+
+        # if resize:
+        #     input = cv2.resize(input, (size, size), interpolation=cv2.INTER_AREA)
+        #     data = cv2.resize(data, (size, size), interpolation=cv2.INTER_AREA)
+        frame_landmark_list.append(data)
+
+    for i in range(len(landmarks) - len(frame_landmark_list)):
+        # filling frame_landmark_list in case of error
+        frame_landmark_list.append(frame_landmark_list[i])
+
+    return frame_landmark_list
 
 def generate_landmarks(frames_list, face_aligner, size=256):
     frame_landmark_list = []
@@ -111,7 +147,7 @@ def generate_landmarks(frames_list, face_aligner, size=256):
         # if resize:
         #     input = cv2.resize(input, (size, size), interpolation=cv2.INTER_AREA)
         #     data = cv2.resize(data, (size, size), interpolation=cv2.INTER_AREA)
-        frame_landmark_list.append((input, data))
+        frame_landmark_list.append((input,data))
 
     for i in range(len(frames_list) - len(frame_landmark_list)):
         # filling frame_landmark_list in case of error
