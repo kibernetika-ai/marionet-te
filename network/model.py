@@ -3,8 +3,8 @@ import math
 import torch
 import torch.nn as nn
 
-from marionette.network import blocks
-from marionette.network import unet
+from network import blocks
+from network import unet
 
 E_LEN = 512
 
