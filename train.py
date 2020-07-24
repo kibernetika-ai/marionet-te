@@ -17,7 +17,6 @@ from dataset.dataset_class import DatasetRepeater
 from dataset.video_extraction_conversion import *
 from loss.loss_discriminator import *
 from loss.loss_generator import *
-from network import disentangler
 from network.model import *
 from network.resblocks import *
 

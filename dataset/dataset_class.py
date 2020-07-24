@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 import face_alignment
 
 from .video_extraction_conversion import *
-from marionette.utils import utils
+from utils import utils
 
 
 class VidDataSet(Dataset):
