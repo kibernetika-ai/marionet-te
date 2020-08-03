@@ -116,6 +116,7 @@ def norm_landmarks(landmarks,in_size=(450,450), size=256):
 
     return frame_landmark_list
 
+
 def generate_landmarks(frames_list, face_aligner, size=256, crop=True, margins=None):
     frame_landmark_list = []
     fa = face_aligner
