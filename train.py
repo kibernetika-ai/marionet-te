@@ -181,8 +181,8 @@ def main():
             'i_batch': step,
             'optimizerG': optimizerG.state_dict(),
             'optimizerD': optimizerD.state_dict(),
-            'is_bilinear': not args.not_bilinear,
-            'another_resup': args.another_resup,
+            'is_bilinear': is_bilinear,
+            'another_resup': another_resup,
         }, path)
         print_fun('Done saving latest.')
 
@@ -279,15 +279,15 @@ def main():
             if step != 0 and step % save_checkpoint == 0:
                 save_model(path_to_chkpt)
 
-            if step - prev_step == 1000:
-                print_fun('save 1000 step')
-                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_1000step.pkl'))
             if step - prev_step == 2000:
                 print_fun('save 2000 step')
                 save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_2000step.pkl'))
             if step - prev_step == 5000:
                 print_fun('save 5000 step')
                 save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_5000step.pkl'))
+            if step - prev_step == 10000:
+                print_fun('save 10000 step')
+                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_10000step.pkl'))
 
         if epoch % log_epoch == 0:
             save_model(path_to_chkpt)
