@@ -138,8 +138,8 @@ def main():
             'i_batch': i_batch,
             'optimizerG': optimizerG.state_dict(),
             'optimizerD': optimizerD.state_dict(),
-            'is_bilinear': not args.not_bilinear,
-            'another_resup': args.another_resup,
+            'is_bilinear': is_bilinear,
+            'another_resup': another_resup,
         }, path_to_chkpt)
         print_fun('...Done')
         prev_step = 0
@@ -170,6 +170,21 @@ def main():
     print_fun(f"Will save checkpoint each {save_checkpoint} step.")
     if prev_step != 0:
         print_fun(f"Starting at {prev_step} step.")
+
+    def save_model(path):
+        print_fun('Saving latest...')
+        torch.save({
+            'epoch': epoch,
+            'G_state_dict': G.module.state_dict(),
+            'D_state_dict': D.module.state_dict(),
+            'num_vid': dataset.__len__(),
+            'i_batch': step,
+            'optimizerG': optimizerG.state_dict(),
+            'optimizerD': optimizerD.state_dict(),
+            'is_bilinear': not args.not_bilinear,
+            'another_resup': args.another_resup,
+        }, path)
+        print_fun('Done saving latest.')
 
     for epoch in range(0, num_epochs):
         # if epochCurrent > epoch:
@@ -262,37 +277,20 @@ def main():
                 writer.flush()
 
             if step != 0 and step % save_checkpoint == 0:
-                print_fun('Saving latest...')
-                torch.save({
-                    'epoch': epoch,
-                    'G_state_dict': G.module.state_dict(),
-                    'D_state_dict': D.module.state_dict(),
-                    'num_vid': dataset.__len__(),
-                    'i_batch': step,
-                    'optimizerG': optimizerG.state_dict(),
-                    'optimizerD': optimizerD.state_dict(),
-                    'is_bilinear': not args.not_bilinear,
-                    'another_resup': args.another_resup,
-                },
-                    path_to_chkpt
-                )
+                save_model(path_to_chkpt)
+
+            if step - prev_step == 1000:
+                print_fun('save 1000 step')
+                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_1000step.pkl'))
+            if step - prev_step == 2000:
+                print_fun('save 2000 step')
+                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_2000step.pkl'))
+            if step - prev_step == 5000:
+                print_fun('save 5000 step')
+                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_5000step.pkl'))
 
         if epoch % log_epoch == 0:
-            print_fun('Saving latest...')
-            torch.save({
-                'epoch': epoch,
-                'G_state_dict': G.module.state_dict(),
-                'D_state_dict': D.module.state_dict(),
-                'num_vid': dataset.__len__(),
-                'i_batch': step,
-                'optimizerG': optimizerG.state_dict(),
-                'optimizerD': optimizerD.state_dict(),
-                'is_bilinear': not args.not_bilinear,
-                'another_resup': args.another_resup,
-            },
-                path_to_chkpt
-            )
-            print_fun('...Done saving latest')
+            save_model(path_to_chkpt)
 
 
 if __name__ == '__main__':
