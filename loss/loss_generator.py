@@ -98,7 +98,7 @@ class LossCnt(nn.Module):
         self.l1_loss = nn.L1Loss()
         self.conv_idx_list = [3, 8, 13, 22, 31]  # idxes of relu layers in VGG19 cf.paper
 
-    def forward(self, x, x_hat, vgg19_weight=1.5e-1, vggface_weight=2.5e-2):
+    def forward(self, x, x_hat, vgg19_weight=1., vggface_weight=1.):
         """Retrieve vggface feature maps"""
         with torch.no_grad():  # no need for gradient compute
             vgg_x_features = self.VGGFace(x)  # returns a list of feature maps at desired layers
@@ -215,7 +215,6 @@ class LossG(nn.Module):
 
         self.perceptual = LossCnt(vggface_body_path, vggface_weight_path, device)
         self.lossAdv = LossAdv()
-        self.lossMatch = LossMatch(device=device)
 
     def forward(self, img, fake, fake_score, d_real_res_list, d_fake_res_list):
         loss_adv = self.lossAdv(fake_score, d_real_res_list, d_fake_res_list)

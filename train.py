@@ -30,13 +30,13 @@ def parse_args():
     parser.add_argument('--save-checkpoint', type=int, default=1000)
     parser.add_argument('--train-dir', default='train')
     parser.add_argument('--vggface-dir', default='.')
-    parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
+    parser.add_argument('--data-dir')
+    parser.add_argument('--val-dir')
     parser.add_argument('--frame-shape', default=256, type=int)
     parser.add_argument('--workers', default=4, type=int)
     parser.add_argument('--disc-learn', default=1, type=int)
     parser.add_argument('--not-bilinear', action='store_true')
     parser.add_argument('--another-resup', action='store_true')
-    parser.add_argument('--fa-device', default='cuda:0' if torch.cuda.is_available() else 'cpu')
 
     return parser.parse_args()
 
@@ -49,35 +49,31 @@ def print_fun(s):
 def main():
     args = parse_args()
     """Create dataset and net"""
-    matplotlib.use('agg')
     cpu = torch.device("cpu")
     device = torch.device("cuda") if torch.cuda.is_available() else cpu
     batch_size = args.batch_size
     frame_shape = args.frame_shape
     K = args.k
 
-    if args.preprocessed:
-        dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, frame_shape=frame_shape)
-        dataset = DatasetRepeater(dataset, num_repeats=10 if len(dataset) < 100 else 2)
-        data_loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=True,
-            drop_last=True,
-            num_workers=args.workers,
-        )
-    else:
-        dataset = VidDataSet(
-            K=K, path_to_mp4=args.data_dir,
-            device=args.fa_device, size=frame_shape
-        )
-        data_loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=True,
-            drop_last=True,
-            num_workers=args.workers if 'cuda' not in args.fa_device else 0,
-        )
+    if not args.preprocessed and not args.data_dir:
+        raise RuntimeError('Please provide either --preprocessed or --data-dir (path to the dataset)')
+    data_dir = args.preprocessed or args.data_dir
+
+    dataset = PreprocessDataset(K=K, path_to_preprocess=data_dir, frame_shape=frame_shape)
+    dataset = DatasetRepeater(dataset, num_repeats=10 if len(dataset) < 100 else 2)
+    data_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+        num_workers=args.workers,
+    )
+
+    val_loader = None
+    if args.val_dir:
+        val_dataset = PreprocessDataset(K=K, path_to_preprocess=args.val_dir, frame_shape=frame_shape)
+        val_dataset = DatasetRepeater(val_dataset, num_repeats=10 if len(val_dataset) < 100 else 2)
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=True)
 
     path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
     if os.path.isfile(path_to_chkpt):
@@ -186,6 +182,23 @@ def main():
         }, path)
         print_fun('Done saving latest.')
 
+    def get_picture(tensor):
+        return (tensor[0] * 127.5 + 127.5).permute([1, 2, 0]).type(torch.int32).to(cpu).numpy()
+
+    def make_grid(tensor):
+        np_image = (tensor * 127.5 + 127.5).permute([0, 2, 3, 1]).type(torch.int32).to(cpu).numpy()
+        np_image = np_image.clip(0, 255).astype(np.uint8)
+        canvas = np.zeros([frame_shape, frame_shape, 3])
+        size = math.ceil(math.sqrt(tensor.shape[0]))
+        im_size = frame_shape // size
+        for i, im in enumerate(np_image):
+            col = i % size
+            row = i // size
+            im = cv2.resize(im, (im_size, im_size))
+            canvas[row * im_size:(row + 1) * im_size, col * im_size:(col + 1) * im_size] = im
+
+        return canvas
+
     for epoch in range(0, num_epochs):
         # if epochCurrent > epoch:
         #     pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
@@ -234,23 +247,6 @@ def main():
 
             # Output training stats
             if step % log_step == 0:
-                def get_picture(tensor):
-                    return (tensor[0] * 127.5 + 127.5).permute([1, 2, 0]).type(torch.int32).to(cpu).numpy()
-
-                def make_grid(tensor):
-                    np_image = (tensor * 127.5 + 127.5).permute([0, 2, 3, 1]).type(torch.int32).to(cpu).numpy()
-                    np_image = np_image.clip(0, 255).astype(np.uint8)
-                    canvas = np.zeros([frame_shape, frame_shape, 3])
-                    size = math.ceil(math.sqrt(tensor.shape[0]))
-                    im_size = frame_shape // size
-                    for i, im in enumerate(np_image):
-                        col = i % size
-                        row = i // size
-                        im = cv2.resize(im, (im_size, im_size))
-                        canvas[row * im_size:(row+1) * im_size, col*im_size:(col+1) * im_size] = im
-
-                    return canvas
-
                 out1 = get_picture(fake)
                 out2 = get_picture(img)
                 out3 = get_picture(mark)
@@ -259,9 +255,9 @@ def main():
                 accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out1.shape)
                 ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8), out2.clip(0, 255).astype(np.uint8), multichannel=True)
                 print_fun(
-                    'Step %d [%d/%d][%d/%d]\tLoss_G: %.4f\tLoss_D: %.4f\tMatch: %.3f\tSSIM: %.3f'
-                    % (step, epoch, num_epochs, i_batch, len(data_loader),
-                       loss_generator.item(), loss_d.item(), accuracy, ssim)
+                    f'Step {step} [{epoch}/{num_epochs}][{i_batch}/{len(data_loader)}]\t'
+                    f'Loss_G: {loss_generator.item():.4f}\tLoss_D: {loss_d.item():.4f}\t'
+                    f'Match: {accuracy:.3f}\tSSIM: {ssim:.3f}'
                 )
 
                 image = np.hstack((out1, out2, out3, out4)).clip(0, 255).astype(np.uint8)
@@ -279,17 +275,49 @@ def main():
             if step != 0 and step % save_checkpoint == 0:
                 save_model(path_to_chkpt)
 
-            if step - prev_step == 2000:
-                print_fun('save 2000 step')
-                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_2000step.pkl'))
-            if step - prev_step == 5000:
-                print_fun('save 5000 step')
-                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_5000step.pkl'))
-            if step - prev_step == 10000:
-                print_fun('save 10000 step')
-                save_model(os.path.join(os.path.dirname(path_to_chkpt), 'model_10000step.pkl'))
-
         if epoch % log_epoch == 0:
+            if val_loader is not None:
+                # Validation for 1 item.
+                for frames, marks, img, mark, i in val_loader:
+                    frames = frames.to(device).reshape([-1, *list(frames.shape[2:])])
+                    marks = marks.to(device).reshape([-1, *list(marks.shape[2:])])
+                    mark = mark.to(device)
+                    img = img.to(device)
+
+                    fake = G(mark, frames, marks)
+                    fake_score, d_fake_list = D(fake, mark)
+
+                    with torch.no_grad():
+                        real_score, d_real_list = D(img, mark)
+
+                    loss_generator = loss_g(
+                        img, fake, fake_score, d_fake_list, d_real_list
+                    )
+                    out1 = get_picture(fake)
+                    out2 = get_picture(img)
+                    out3 = get_picture(mark)
+                    out4 = make_grid(frames)
+
+                    accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out1.shape)
+                    ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8),
+                                                         out2.clip(0, 255).astype(np.uint8), multichannel=True)
+                    print_fun(
+                        f'Step {step} [{epoch}/{num_epochs}]\tVal_Loss_G: {loss_generator.item():.4f}\t'
+                        f'Val_Match: {accuracy:.3f}\tVal_SSIM: {ssim:.3f}'
+                    )
+
+                    image = np.hstack((out1, out2, out3, out4)).clip(0, 255).astype(np.uint8)
+                    writer.add_image(
+                        'Val_Result', image,
+                        global_step=step,
+                        dataformats='HWC'
+                    )
+
+                    writer.add_scalar('val_loss_g', loss_generator.item(), global_step=step)
+                    writer.add_scalar('val_match', accuracy, global_step=step)
+                    writer.add_scalar('val_ssim', ssim, global_step=step)
+                    break
+
             save_model(path_to_chkpt)
 
 
