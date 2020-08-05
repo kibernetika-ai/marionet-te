@@ -157,10 +157,13 @@ def main():
     writer = tensorboardX.SummaryWriter(args.train_dir)
     num_batches = len(dataset) / args.batch_size
     log_step = int(round(0.005 * num_batches + 20))
+    val_step = int(round(0.005 * num_batches + 100))
     log_epoch = 1
     if num_batches <= 100:
         log_step = 50
         log_epoch = 300 // num_batches
+    else:
+        val_step = 2000 // num_batches
     save_checkpoint = args.save_checkpoint
     print_fun(f"Will log each {log_step} step.")
     print_fun(f"Will save checkpoint each {save_checkpoint} step.")
@@ -198,6 +201,49 @@ def main():
             canvas[row * im_size:(row + 1) * im_size, col * im_size:(col + 1) * im_size] = im
 
         return canvas
+
+    def run_validation():
+        if val_loader is not None:
+            # Validation for 1 item.
+            for frames, marks, img, mark, i in val_loader:
+                frames = frames.to(device).reshape([-1, *list(frames.shape[2:])])
+                marks = marks.to(device).reshape([-1, *list(marks.shape[2:])])
+                mark = mark.to(device)
+                img = img.to(device)
+
+                fake = G(mark, frames, marks)
+                fake_score, d_fake_list = D(fake, mark)
+
+                with torch.no_grad():
+                    real_score, d_real_list = D(img, mark)
+
+                loss_generator = loss_g(
+                    img, fake, fake_score, d_fake_list, d_real_list
+                )
+                out1 = get_picture(fake)
+                out2 = get_picture(img)
+                out3 = get_picture(mark)
+                out4 = make_grid(frames)
+
+                accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out1.shape)
+                ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8),
+                                                     out2.clip(0, 255).astype(np.uint8), multichannel=True)
+                print_fun(
+                    f'Step {step} [{epoch}/{num_epochs}]\tVal_Loss_G: {loss_generator.item():.4f}\t'
+                    f'Val_Match: {accuracy:.3f}\tVal_SSIM: {ssim:.3f}'
+                )
+
+                image = np.hstack((out1, out2, out3, out4)).clip(0, 255).astype(np.uint8)
+                writer.add_image(
+                    'Val_Result', image,
+                    global_step=step,
+                    dataformats='HWC'
+                )
+
+                writer.add_scalar('val_loss_g', loss_generator.item(), global_step=step)
+                writer.add_scalar('val_match', accuracy, global_step=step)
+                writer.add_scalar('val_ssim', ssim, global_step=step)
+                break
 
     for epoch in range(0, num_epochs):
         # if epochCurrent > epoch:
@@ -274,50 +320,11 @@ def main():
 
             if step != 0 and step % save_checkpoint == 0:
                 save_model(path_to_chkpt)
+            if step % val_step == 0:
+                run_validation()
 
         if epoch % log_epoch == 0:
-            if val_loader is not None:
-                # Validation for 1 item.
-                for frames, marks, img, mark, i in val_loader:
-                    frames = frames.to(device).reshape([-1, *list(frames.shape[2:])])
-                    marks = marks.to(device).reshape([-1, *list(marks.shape[2:])])
-                    mark = mark.to(device)
-                    img = img.to(device)
-
-                    fake = G(mark, frames, marks)
-                    fake_score, d_fake_list = D(fake, mark)
-
-                    with torch.no_grad():
-                        real_score, d_real_list = D(img, mark)
-
-                    loss_generator = loss_g(
-                        img, fake, fake_score, d_fake_list, d_real_list
-                    )
-                    out1 = get_picture(fake)
-                    out2 = get_picture(img)
-                    out3 = get_picture(mark)
-                    out4 = make_grid(frames)
-
-                    accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out1.shape)
-                    ssim = metrics.structural_similarity(out1.clip(0, 255).astype(np.uint8),
-                                                         out2.clip(0, 255).astype(np.uint8), multichannel=True)
-                    print_fun(
-                        f'Step {step} [{epoch}/{num_epochs}]\tVal_Loss_G: {loss_generator.item():.4f}\t'
-                        f'Val_Match: {accuracy:.3f}\tVal_SSIM: {ssim:.3f}'
-                    )
-
-                    image = np.hstack((out1, out2, out3, out4)).clip(0, 255).astype(np.uint8)
-                    writer.add_image(
-                        'Val_Result', image,
-                        global_step=step,
-                        dataformats='HWC'
-                    )
-
-                    writer.add_scalar('val_loss_g', loss_generator.item(), global_step=step)
-                    writer.add_scalar('val_match', accuracy, global_step=step)
-                    writer.add_scalar('val_ssim', ssim, global_step=step)
-                    break
-
+            run_validation()
             save_model(path_to_chkpt)
 
 
