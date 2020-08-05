@@ -163,9 +163,10 @@ def main():
         log_step = 50
         log_epoch = 300 // num_batches
     else:
-        val_step = 2000 // num_batches
+        val_step = 1000
     save_checkpoint = args.save_checkpoint
     print_fun(f"Will log each {log_step} step.")
+    print_fun(f"Will run validation each {val_step} step.")
     print_fun(f"Will save checkpoint each {save_checkpoint} step.")
     if prev_step != 0:
         print_fun(f"Starting at {prev_step} step.")
